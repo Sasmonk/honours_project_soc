@@ -1,0 +1,13 @@
+compile.log
+run/
+simv*
+csrc/
+*.daidir/
+*.log
+*.vcd
+*.fsdb
+*.vpd
+*.wlf
+*.key
+ucli.key
+vc_hdrs.h
