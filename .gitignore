@@ -11,3 +11,17 @@ csrc/
 *.key
 ucli.key
 vc_hdrs.h
+**/*.log
+**/*.fsdb
+**/*.vcd
+**/*.vpd
+**/*.wlf
+**/*.key
+**/*.rc
+**/*.conf
+**/novas*
+**/verdiLog/
+**/csrc/
+**/simv*
+**/*.daidir/
+**/*_session.vim
