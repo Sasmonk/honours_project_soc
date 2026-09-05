@@ -1,0 +1,25 @@
+rc file Version 1.0
+
+[Design]
+COMPILE_PATH=/home/student/Documents/1602-23-735-176/IPs/aes_core-master
+VCS_HOME=/home/student/snps_tools_target/vcs/U-2023.03
+VERDI_HOME=/home/student/snps_tools_target/verdi/U-2023.03-SP1
+SystemC=FALSE
+UUM=FALSE
+KDB=TRUE
+USE_NOVAS_HOME=FALSE
+COSIM=FALSE
+TOP=test_bench_top 
+OPTION=-ssv -ssy 
+ELAB_OPTION=-ssv -ssy 
+ELAB=TRUE
+SIMV_WRAPPER=FALSE
+[vcs]
+RUN_ELABCOM=unset TURBO_LOG_DIR ;\rm -rf /home/student/Documents/1602-23-735-176/IPs/aes_core-master/simv.daidir/elabcomLog ;/home/student/snps_tools_target/vcs/U-2023.03/linux64/bin/elabcom -logdir /home/student/Documents/1602-23-735-176/IPs/aes_core-master/simv.daidir/elabcomLog  -simvdaidir /home/student/Documents/1602-23-735-176/IPs/aes_core-master/simv.daidir  -lib /home/student/Documents/1602-23-735-176/IPs/aes_core-master/simv.daidir/work  -saveLevel  -elab /home/student/Documents/1602-23-735-176/IPs/aes_core-master/simv.daidir/kdb -simflow -simdir /home/student/Documents/1602-23-735-176/IPs/aes_core-master/simv.daidir/kdb_libs -topfile /home/student/Documents/1602-23-735-176/IPs/aes_core-master/simv.daidir/.elabcomTopFile -ssv -ssy  -Lf work +disable_message+C00380+C00381 +disable_message+C00388+C00389  >& /dev/null  && echo Success >& /home/student/Documents/1602-23-735-176/IPs/aes_core-master/simv.daidir/.elabcomReport || echo Fail >& /home/student/Documents/1602-23-735-176/IPs/aes_core-master/simv.daidir/.elabcomReport; \rm -rf /home/student/Documents/1602-23-735-176/IPs/aes_core-master/simv.daidir/work.lib++ /home/student/Documents/1602-23-735-176/IPs/aes_core-master/simv.daidir/kdb_libs/ 
+
+[Value]
+WREALX=ffff534e50535f58
+WREALZ=ffff534e50535f5a
+
+[CompInfo]
+FLOW_OPTS=-kdb -ssv -ssy 

@@ -1,0 +1,2 @@
+Command Line: /home/student/snps_tools_target/verdi/U-2023.03-SP1/platform/LINUXAMD64/bin/Novas -dbdir simv_axi.daidir -ssf dump_axi.fsdb -sswr aes_signals.rc
+uname(Linux vlsi67.vce.ac.in 4.18.0-553.104.1.el8_10.x86_64 #1 SMP Fri Feb 13 15:51:56 UTC 2026 x86_64)

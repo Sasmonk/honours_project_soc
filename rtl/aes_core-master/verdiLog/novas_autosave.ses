@@ -1,0 +1,94 @@
+@verdi rc file Version 1.0
+[General]
+saveDB = TRUE
+relativePath = FALSE
+saveSingleView = FALSE
+saveNWaveWinId = 
+VerdiVersion = Verdi_U-2023.03-SP1
+[KeyNote]
+Line1 = Automatic Backup 0
+Line2 = Save Open Database Information: Yes
+Line3 = Path Option: Absolute Paths
+Line4 = Windows Option: All Windows
+[OneSearch]
+isExisted = TRUE
+[TestBench]
+ConstrViewShow = 0
+InherViewShow = 0
+FSDBMsgShow = 0
+AnnotationShow = 0
+Console = FALSE
+powerDumped = 0
+[fusa]
+fdb_server = 
+fdb_proj = 
+fdb_campaign = 
+fdb_tool = 
+[hb]
+postSimFile = /home/student/Documents/1602-23-735-176/IPs/aes_core-master/dump.fsdb
+syncTime = 0
+viewport = 0 26 1600 836 0 0 220 1598
+activeNode = "test_bench_top"
+activeScope = "test_bench_top"
+activeFile = "bench/verilog/test_bench_top.v"
+interactiveMode = False
+viewType = Source
+simulatorMode = False
+sourceBeginLine = 61
+baMode = False
+srcLineNum = True
+AutoWrap = True
+IdentifyFalseLogic = False
+syncSignal = False
+traceMode = Hierarchical
+showTraceInSchema = True
+paMode = False
+funcMode = False
+powerAwareAnnot = True
+safetyAwareAnnot = True
+amsAnnot = True
+DnDtraceCrossHierOnly = True
+leadingZero = False
+signalPane = False
+SourceVerticalScrollLines = 5
+Scope1 = "test_bench_top"
+multipleSelection = 1 61 2 0 0
+sdfCheckUndef = FALSE
+simFlow = FALSE
+[hb.design]
+importCmd = "-dbdir" "simv.daidir" 
+invokeDir = /home/student/Documents/1602-23-735-176/IPs/aes_core-master
+[hb.sourceTab.1]
+scope = test_bench_top
+File = /home/student/Documents/1602-23-735-176/IPs/aes_core-master/bench/verilog/test_bench_top.v
+Line = 62
+[nMemoryManager]
+WaveformFile = /home/student/Documents/1602-23-735-176/IPs/aes_core-master/dump.fsdb
+UserActionNum = 0
+nMemWindowNum = 0
+[wave.0]
+viewPort = 0 25 1600 246 125 65
+primaryWindow = TRUE
+SessionFile = /home/student/Documents/1602-23-735-176/IPs/aes_core-master/verdiLog/novas_autosave.ses.wave.0
+displayGrid = FALSE
+hierarchicalName = FALSE
+snap = TRUE
+displayLeadingZeros = FALSE
+fixDelta = FALSE
+displayCursorMarker = FALSE
+autoUpdate = FALSE
+highlightGlitchs = FALSE
+waveformSyncCursorMarker = FALSE
+waveformSyncHorizontalRange = FALSE
+waveformSyncVerticalscroll = FALSE
+displayErrors = TRUE
+displayMsgSymbols = TRUE
+showMsgDescriptions = TRUE
+autoFit = FALSE
+displayDeltaY = FALSE
+centerCursor = FALSE
+fsaRegMask = TRUE
+fsaCoreMask = TRUE
+fsaSfsmMask = TRUE
+fsaEcrMask = TRUE
+tPropMask = TRUE
