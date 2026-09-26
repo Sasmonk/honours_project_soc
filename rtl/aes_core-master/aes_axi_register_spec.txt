@@ -1,0 +1,411 @@
+================================================================================
+                    AES-128 AXI4-LITE SLAVE IP CORE
+             REGISTER SPECIFICATION & HARDWARE INTERFACE SHEET
+================================================================================
+Document Version : 1.0
+Target Core      : 128-bit AES Encryption & Decryption Core
+Bus Architecture : AXI4-Lite Slave Interface (32-bit Data Bus)
+Date             : September 2026
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+1. ARCHITECTURE OVERVIEW & BLOCK DIAGRAM
+2. AXI4-LITE SLAVE PIN DEFINITIONS
+3. REGISTER MEMORY MAP SUMMARY
+4. DETAILED REGISTER DEFINITIONS
+   4.1  CTRL      - Control Register (0x00)
+   4.2  STATUS    - Status Register (0x04)
+   4.3  INTR_EN   - Interrupt Enable Register (0x08)
+   4.4  CORE_ID   - IP Identification & Version Register (0x0C)
+   4.5  KEY0-3    - 128-bit Key Registers (0x10 - 0x1C)
+   4.6  DIN0-3    - 128-bit Data Input Registers (0x20 - 0x2C)
+   4.7  DOUT0-3   - 128-bit Data Output Registers (0x30 - 0x3C)
+5. HARDWARE INTEGRATION & SIGNAL BRIDGING (CSR TO AES CORE)
+6. BYTE ORDER & WORD MAPPING (NIST FIPS-197 ALIGNMENT)
+7. SOFTWARE PROGRAMMING SEQUENCE & USE CASES
+   7.1  Single-Block Encryption Flow (Polling Mode)
+   7.2  Single-Block Decryption Flow (Polling Mode)
+   7.3  Interrupt-Driven Flow
+
+================================================================================
+1. ARCHITECTURE OVERVIEW & BLOCK DIAGRAM
+================================================================================
+The AES-128 AXI4-Lite Slave IP Core integrates the 128-bit AES Cipher Top and 
+AES Inverse Cipher Top engines with an industry-standard AXI4-Lite Slave bus 
+interface. 
+
+All external transactions, data transfers, configuration, and status monitoring 
+occur exclusively through the 32-bit register bank.
+
++------------------------------------------------------------------------------+
+|                             AXI4-Lite Master (CPU / DMA)                     |
++------------------------------------------------------------------------------+
+                                      |
+                     AXI4-Lite Bus (32-bit Data, 32-bit Addr)
+                                      |
+                                      v
++------------------------------------------------------------------------------+
+|                          AES AXI4-LITE SLAVE IP                              |
+|                                                                              |
+|  +------------------------------------------------------------------------+  |
+|  |                     AXI4-Lite Bus Protocol Interface                   |  |
+|  |  - Write Address (AW) Channel     - Read Address (AR) Channel          |  |
+|  |  - Write Data (W) Channel         - Read Data (R) Channel              |  |
+|  |  - Write Response (B) Channel                                          |  |
+|  +------------------------------------------------------------------------+  |
+|                                     |                                        |
+|                                     v                                        |
+|  +------------------------------------------------------------------------+  |
+|  |                        32-BIT REGISTER BLOCK                           |  |
+|  |                                                                        |  |
+|  |  [0x00] CTRL     : Start, Mode (Enc/Dec), Key Update, Reset            |  |
+|  |  [0x04] STATUS   : Busy, Done, Key Ready                               |  |
+|  |  [0x08] INTR_EN  : Interrupt Enable Mask                               |  |
+|  |  [0x0C] CORE_ID  : Hardware Identification (0x41455331)                |  |
+|  |                                                                        |  |
+|  |  [0x10 - 0x1C] KEY[0..3]     : 128-bit AES Key (4 x 32-bit)            |  |
+|  |  [0x20 - 0x2C] DATA_IN[0..3] : 128-bit Text Input (4 x 32-bit)         |  |
+|  |  [0x30 - 0x3C] DATA_OUT[0..3]: 128-bit Text Output (4 x 32-bit)        |  |
+|  +------------------------------------------------------------------------+  |
+|                               |                  ^                           |
+|       kld, ld, key[127:0],   |                  | done, done2,              |
+|       text_in[127:0]          v                  | text_out[127:0]           |
+|  +------------------------------------------------------------------------+  |
+|  |                      UNDERLYING AES HARDWARE CORES                     |  |
+|  |                                                                        |  |
+|  |   [aes_cipher_top] (Encryption)     [aes_inv_cipher_top] (Decryption)  |  |
+|  |   - 10-round iterative pipeline     - 10-round iterative pipeline      |  |
+|  |   - Key Expansion engine            - Inverse Key Expansion engine     |  |
+|  +------------------------------------------------------------------------+  |
++------------------------------------------------------------------------------+
+                                      |
+                                      v
+                                 irq (interrupt)
+
+================================================================================
+2. AXI4-LITE SLAVE PIN DEFINITIONS
+================================================================================
+The peripheral exposes a standard AXI4-Lite Slave interface:
+
+Signal Name        Width   Direction  Description
+--------------------------------------------------------------------------------
+Global Signals:
+  s_axi_aclk         1     Input      Global Clock source (matches core clock)
+  s_axi_aresetn      1     Input      Global Reset, active-low synchronous reset
+
+Write Address Channel (AW):
+  s_axi_awaddr      32     Input      Write address
+  s_axi_awprot       3     Input      Protection type (default 3'b000)
+  s_axi_awvalid      1     Input      Write address valid
+  s_axi_awready      1     Output     Write address ready
+
+Write Data Channel (W):
+  s_axi_wdata       32     Input      Write data bus (32-bit)
+  s_axi_wstrb        4     Input      Write byte strobes (4 bits)
+  s_axi_wvalid       1     Input      Write data valid
+  s_axi_wready       1     Output     Write data ready
+
+Write Response Channel (B):
+  s_axi_bresp        2     Output     Write response (2'b00 = OKAY)
+  s_axi_bvalid       1     Output     Write response valid
+  s_axi_bready       1     Input      Write response ready
+
+Read Address Channel (AR):
+  s_axi_araddr      32     Input      Read address
+  s_axi_arprot       3     Input      Protection type
+  s_axi_arvalid      1     Input      Read address valid
+  s_axi_arready      1     Output     Read address ready
+
+Read Data Channel (R):
+  s_axi_rdata       32     Output     Read data bus (32-bit)
+  s_axi_rresp        2     Output     Read response (2'b00 = OKAY)
+  s_axi_rvalid       1     Output     Read data valid
+  s_axi_rready       1     Input      Read data ready
+
+Sideband Interrupt:
+  irq                1     Output     Active-high interrupt output to host CPU
+
+================================================================================
+3. REGISTER MEMORY MAP SUMMARY
+================================================================================
+All registers are 32-bit wide and aligned to 4-byte address boundaries.
+Address range: Base Address + 0x00 to Base Address + 0x3C.
+
+Offset   Register Name   Access   Reset Value   Description
+--------------------------------------------------------------------------------
+0x00     CTRL            R/W      0x00000000    Control & Command Register
+0x04     STATUS          R/W1C    0x00000000    Core Status & Flag Register
+0x08     INTR_EN         R/W      0x00000000    Interrupt Enable Mask Register
+0x0C     CORE_ID         RO       0x41455331    Core ID & Version ("AES1")
+0x10     KEY0            R/W      0x00000000    AES Key Word 0 (bits [31:0])
+0x14     KEY1            R/W      0x00000000    AES Key Word 1 (bits [63:32])
+0x18     KEY2            R/W      0x00000000    AES Key Word 2 (bits [95:64])
+0x1C     KEY3            R/W      0x00000000    AES Key Word 3 (bits [127:96])
+0x20     DATA_IN0        R/W      0x00000000    Input Data Word 0 (bits [31:0])
+0x24     DATA_IN1        R/W      0x00000000    Input Data Word 1 (bits [63:32])
+0x28     DATA_IN2        R/W      0x00000000    Input Data Word 2 (bits [95:64])
+0x2C     DATA_IN3        R/W      0x00000000    Input Data Word 3 (bits [127:96])
+0x30     DATA_OUT0       RO       0x00000000    Output Result Word 0 (bits [31:0])
+0x34     DATA_OUT1       RO       0x00000000    Output Result Word 1 (bits [63:32])
+0x38     DATA_OUT2       RO       0x00000000    Output Result Word 2 (bits [95:64])
+0x3C     DATA_OUT3       RO       0x00000000    Output Result Word 3 (bits [127:96])
+
+Note: Access types:
+  RO   = Read-Only
+  R/W  = Read and Write
+  W1C  = Write-1-to-Clear
+  WO   = Write-Only (Reads return 0)
+
+================================================================================
+4. DETAILED REGISTER DEFINITIONS
+================================================================================
+
+--------------------------------------------------------------------------------
+4.1 CTRL (Control Register) - Offset 0x00
+--------------------------------------------------------------------------------
+Controls operational modes, triggers execution, and performs software resets.
+
+Bit(s)   Field Name    Type  Reset  Description
+--------------------------------------------------------------------------------
+31:5     RESERVED      RO    0x0    Reserved. Read as 0, write has no effect.
+4        SOFT_RST      R/W   0      Software Reset:
+                                    1 = Pulse reset to AES core and internal FSM.
+                                    Self-clearing bit (auto returns to 0).
+3        KEY_UPDATE    R/W   0      Key Expansion Trigger:
+                                    1 = Force reload of 128-bit Key into key
+                                        expansion schedule.
+                                    0 = Reuse existing expanded key schedule.
+2        AUTO_START    R/W   0      Auto-Start on DATA_IN3 Write:
+                                    1 = Writing to DATA_IN3 automatically
+                                        triggers the START pulse.
+                                    0 = Explicit write to START bit required.
+1        MODE          R/W   0      Operating Mode:
+                                    0 = AES Encryption (calls aes_cipher_top)
+                                    1 = AES Decryption (calls aes_inv_cipher_top)
+0        START         WO    0      Start Computation:
+                                    Write 1 = Generate a 1-clock-cycle pulse on
+                                    internal 'kld' / 'ld' lines to begin AES
+                                    processing.
+                                    Always reads back as 0.
+
+--------------------------------------------------------------------------------
+4.2 STATUS (Status Register) - Offset 0x04
+--------------------------------------------------------------------------------
+Provides real-time operational status and completion indicators.
+
+Bit(s)   Field Name    Type  Reset  Description
+--------------------------------------------------------------------------------
+31:3     RESERVED      RO    0x0    Reserved. Read as 0.
+2        KEY_READY     RO    0      Key Ready Status:
+                                    1 = Key expansion completed and ready.
+                                    0 = Key expansion in progress or uninitialized.
+1        DONE          W1C   0      Operation Complete Flag:
+                                    1 = AES computation finished; valid data
+                                        is present in DATA_OUT[0..3].
+                                    0 = Operation running or idle.
+                                    Write 1 to clear this bit (clears IRQ line).
+                                    Automatically cleared when START is asserted.
+0        BUSY          RO    0      Core Busy Flag:
+                                    1 = AES core is currently computing rounds.
+                                        Host should not overwrite inputs.
+                                    0 = Core is IDLE and ready for new command.
+
+--------------------------------------------------------------------------------
+4.3 INTR_EN (Interrupt Enable Register) - Offset 0x08
+--------------------------------------------------------------------------------
+Controls generation of the peripheral's external interrupt line (irq).
+
+Bit(s)   Field Name    Type  Reset  Description
+--------------------------------------------------------------------------------
+31:1     RESERVED      RO    0x0    Reserved. Read as 0.
+0        DONE_IE       R/W   0      Done Interrupt Enable:
+                                    1 = Assert external 'irq' signal when
+                                        STATUS[DONE] transitions to 1.
+                                    0 = External interrupt generation disabled.
+
+--------------------------------------------------------------------------------
+4.4 CORE_ID (Core Identification & Version) - Offset 0x0C
+--------------------------------------------------------------------------------
+Provides hardware signature for software driver detection and verification.
+
+Bit(s)   Field Name    Type  Reset       Description
+--------------------------------------------------------------------------------
+31:16    MAGIC_ID      RO    0x4145      ASCII "AE"
+15:8     SUB_ID        RO    0x53        ASCII "S"
+7:0      CORE_VER      RO    0x31        Version '1' (0x31) -> ASCII "AES1"
+                                         Combined hex value = 0x41455331
+
+--------------------------------------------------------------------------------
+4.5 KEY0 – KEY3 (128-bit Cipher Key Registers) - Offsets 0x10 to 0x1C
+--------------------------------------------------------------------------------
+These four 32-bit registers collectively hold the 128-bit AES secret key.
+
+Offset  Register  Bit Range  AES Core Signal Slice  Description
+--------------------------------------------------------------------------------
+0x10    KEY0      [31:0]     key[31:0]              Key Lower Word (Bytes 12-15)
+0x14    KEY1      [31:0]     key[63:32]             Key Mid-Low Word (Bytes 8-11)
+0x18    KEY2      [31:0]     key[95:64]             Key Mid-High Word (Bytes 4-7)
+0x1C    KEY3      [31:0]     key[127:96]            Key Upper Word (Bytes 0-3)
+
+Concatenation:
+  full_key[127:0] = { KEY3[31:0], KEY2[31:0], KEY1[31:0], KEY0[31:0] }
+
+--------------------------------------------------------------------------------
+4.6 DATA_IN0 – DATA_IN3 (128-bit Input Text Registers) - Offsets 0x20 to 0x2C
+--------------------------------------------------------------------------------
+These four 32-bit registers hold the 128-bit data block to be encrypted or decrypted.
+(Plaintext for encryption mode, Ciphertext for decryption mode).
+
+Offset  Register  Bit Range  AES Core Signal Slice  Description
+--------------------------------------------------------------------------------
+0x20    DATA_IN0  [31:0]     text_in[31:0]          Input Lower Word (Bytes 12-15)
+0x24    DATA_IN1  [31:0]     text_in[63:32]         Input Mid-Low Word (Bytes 8-11)
+0x28    DATA_IN2  [31:0]     text_in[95:64]         Input Mid-High Word (Bytes 4-7)
+0x2C    DATA_IN3  [31:0]     text_in[127:96]        Input Upper Word (Bytes 0-3)
+
+Concatenation:
+  full_text_in[127:0] = { DATA_IN3[31:0], DATA_IN2[31:0], DATA_IN1[31:0], DATA_IN0[31:0] }
+
+--------------------------------------------------------------------------------
+4.7 DATA_OUT0 – DATA_OUT3 (128-bit Output Text Registers) - Offsets 0x30 to 0x3C
+--------------------------------------------------------------------------------
+These four 32-bit read-only registers hold the 128-bit computation result.
+When the AES core asserts 'done', the register block automatically latches the
+128-bit output into these registers. They remain stable until the next operation.
+
+Offset  Register  Bit Range  AES Core Signal Slice  Description
+--------------------------------------------------------------------------------
+0x30    DATA_OUT0 [31:0]     text_out[31:0]         Output Lower Word (Bytes 12-15)
+0x34    DATA_OUT1 [31:0]     text_out[63:32]        Output Mid-Low Word (Bytes 8-11)
+0x38    DATA_OUT2 [31:0]     text_out[95:64]        Output Mid-High Word (Bytes 4-7)
+0x3C    DATA_OUT3 [31:0]     text_out[127:96]       Output Upper Word (Bytes 0-3)
+
+Concatenation:
+  full_text_out[127:0] = { DATA_OUT3[31:0], DATA_OUT2[31:0], DATA_OUT1[31:0], DATA_OUT0[31:0] }
+
+================================================================================
+5. HARDWARE INTEGRATION & SIGNAL BRIDGING (CSR TO AES CORE)
+================================================================================
+The register block contains an internal finite state machine (FSM) that safely 
+interfaces between the AXI bus clock domain and the AES processing core.
+
+Internal Signal Mapping between Register Block and Underlying AES Core:
+
+AES Core Port        Source in Register Block
+--------------------------------------------------------------------------------
+clk                  s_axi_aclk
+rst                  s_axi_aresetn & ~CTRL[SOFT_RST]
+ld / kld             Generated 1-clock-cycle pulse when CTRL[START] is written
+key[127:0]           { KEY3, KEY2, KEY1, KEY0 }
+text_in[127:0]       { DATA_IN3, DATA_IN2, DATA_IN1, DATA_IN0 }
+done / done2 (input) Signals from AES core back to Register Block
+text_out[127:0]      Captured into { DATA_OUT3, DATA_OUT2, DATA_OUT1, DATA_OUT0 }
+                     on posedge of clock when (done == 1'b1)
+
+FSM State Flow:
+  1. IDLE:
+     - STATUS[BUSY] = 0
+     - Waits for CTRL[START] = 1 (or AUTO_START write on DATA_IN3).
+  2. PULSE_START:
+     - Asserts 'kld' and 'ld' HIGH for exactly 1 clock cycle.
+     - STATUS[BUSY] = 1, STATUS[DONE] = 0.
+  3. COMPUTE:
+     - Deasserts 'kld' and 'ld' to 0.
+     - Core executes 10 iterative rounds (~11-12 clock cycles).
+     - STATUS[BUSY] remains 1.
+  4. LATCH_RESULT:
+     - AES core asserts 'done' (or 'done2' in decrypt mode).
+     - Register block latches 128-bit text_out into DATA_OUT[0..3].
+     - STATUS[DONE] is set to 1.
+     - STATUS[BUSY] is cleared to 0.
+     - If INTR_EN[DONE_IE] == 1, asserts external 'irq' high.
+     - Returns to IDLE state.
+
+================================================================================
+6. BYTE ORDER & WORD MAPPING (NIST FIPS-197 ALIGNMENT)
+================================================================================
+Standard NIST FIPS-197 treats a 128-bit AES block as a 4x4 matrix of bytes:
+  Byte 0   Byte 4   Byte 8    Byte 12
+  Byte 1   Byte 5   Byte 9    Byte 13
+  Byte 2   Byte 6   Byte 10   Byte 14
+  Byte 3   Byte 7   Byte 11   Byte 15
+
+In the RTL implementation:
+  Word 0 = text_in[127:96] = { Byte 0,  Byte 1,  Byte 2,  Byte 3  } -> DATA_IN3
+  Word 1 = text_in[95:64]  = { Byte 4,  Byte 5,  Byte 6,  Byte 7  } -> DATA_IN2
+  Word 2 = text_in[63:32]  = { Byte 8,  Byte 9,  Byte 10, Byte 11 } -> DATA_IN1
+  Word 3 = text_in[31:0]   = { Byte 12, Byte 13, Byte 14, Byte 15 } -> DATA_IN0
+
+Example for 128-bit vector: 0x00112233_44556677_8899AABB_CCDDEEFF
+  - DATA_IN3 (0x2C) <= 32'h00112233
+  - DATA_IN2 (0x28) <= 32'h44556677
+  - DATA_IN1 (0x24) <= 32'h8899AABB
+  - DATA_IN0 (0x20) <= 32'hCCDDEEFF
+
+================================================================================
+7. SOFTWARE PROGRAMMING SEQUENCE & USE CASES
+================================================================================
+
+--------------------------------------------------------------------------------
+7.1 Single-Block Encryption Flow (Polling Mode)
+--------------------------------------------------------------------------------
+Step 1: Write 128-bit Secret Key into Key Registers:
+        Write32(BASE_ADDR + 0x10, Key_Word0);  // KEY0 (bits [31:0])
+        Write32(BASE_ADDR + 0x14, Key_Word1);  // KEY1 (bits [63:32])
+        Write32(BASE_ADDR + 0x18, Key_Word2);  // KEY2 (bits [95:64])
+        Write32(BASE_ADDR + 0x1C, Key_Word3);  // KEY3 (bits [127:96])
+
+Step 2: Write 128-bit Plaintext into Data Input Registers:
+        Write32(BASE_ADDR + 0x20, Plain_Word0); // DATA_IN0 (bits [31:0])
+        Write32(BASE_ADDR + 0x24, Plain_Word1); // DATA_IN1 (bits [63:32])
+        Write32(BASE_ADDR + 0x28, Plain_Word2); // DATA_IN2 (bits [95:64])
+        Write32(BASE_ADDR + 0x2C, Plain_Word3); // DATA_IN3 (bits [127:96])
+
+Step 3: Trigger Encryption:
+        // Set MODE = 0 (Encrypt), START = 1, KEY_UPDATE = 1
+        Write32(BASE_ADDR + 0x00, 0x00000009); // Bits: START(bit 0)=1, KEY_UPDATE(bit 3)=1
+
+Step 4: Poll STATUS Register until DONE == 1:
+        do {
+            status = Read32(BASE_ADDR + 0x04);
+        } while ((status & 0x02) == 0); // Check bit 1 (DONE)
+
+Step 5: Read 128-bit Ciphertext from Data Output Registers:
+        Cipher_Word0 = Read32(BASE_ADDR + 0x30); // DATA_OUT0
+        Cipher_Word1 = Read32(BASE_ADDR + 0x34); // DATA_OUT1
+        Cipher_Word2 = Read32(BASE_ADDR + 0x38); // DATA_OUT2
+        Cipher_Word3 = Read32(BASE_ADDR + 0x3C); // DATA_OUT3
+
+Step 6: Clear DONE Flag:
+        Write32(BASE_ADDR + 0x04, 0x00000002); // Write 1 to bit 1 (W1C)
+
+--------------------------------------------------------------------------------
+7.2 Single-Block Decryption Flow (Polling Mode)
+--------------------------------------------------------------------------------
+Step 1: Write 128-bit Key into KEY[0..3] (0x10 - 0x1C).
+Step 2: Write 128-bit Ciphertext into DATA_IN[0..3] (0x20 - 0x2C).
+Step 3: Trigger Decryption:
+        // Set MODE = 1 (Decrypt), START = 1, KEY_UPDATE = 1
+        Write32(BASE_ADDR + 0x00, 0x0000000B); // Bits: START=1, MODE=1, KEY_UPDATE=1
+Step 4: Poll STATUS Register until DONE == 1.
+Step 5: Read 128-bit Plaintext from DATA_OUT[0..3] (0x30 - 0x3C).
+Step 6: Clear DONE Flag by writing 1 to STATUS[1].
+
+--------------------------------------------------------------------------------
+7.3 Interrupt-Driven Flow
+--------------------------------------------------------------------------------
+1. Enable Interrupt:
+   Write32(BASE_ADDR + 0x08, 0x00000001); // INTR_EN[DONE_IE] = 1
+2. Write KEY and DATA_IN registers.
+3. Write CTRL with START = 1.
+4. CPU continues other tasks while AES computes in hardware.
+5. AES core finishes -> Asserts external 'irq' line.
+6. In Interrupt Service Routine (ISR):
+   - Read 128-bit result from DATA_OUT[0..3].
+   - Write 1 to STATUS[DONE] (0x04) to clear the interrupt flag and deassert 'irq'.
+   - Return from interrupt.
+
+================================================================================
+END OF SPECIFICATION SHEET
+================================================================================
