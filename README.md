@@ -116,46 +116,73 @@ flowchart TB
 Streaming samples move across dedicated hardware interfaces without consuming CPU bus cycles:
 
 ```mermaid
-flowchart LR
-    ADC["ADC / SPI Behavioral Model<br/>(Simulation Stimulus)"]
-    DMA["DMA Controller Engine"]
-    TIMER["System Timer"]
-    FIR["Hardware FIR Filter"]
-    SBUF["Dual-Port Sample Buffer"]
-    VGA["VGA Controller Engine"]
-    DISP["VGA Monitor / Checker"]
+flowchart TB
 
-    GPIO["GPIO User Buttons"]
-    PIC["Core PIC / Interrupt Controller"]
-    UART["AXI UART"]
-    HOST["Host Console / Terminal"]
-    WDT["Watchdog Timer"]
-    CPU["VeeR EL2 Core"]
-    BUS["AXI Interconnect"]
+    %% =========================
+    %% DATA / STREAMING PATH
+    %% =========================
+    subgraph DATA["Streaming Data Path"]
+        direction LR
 
-    ADC -->|Raw SPI Samples| DMA
-    TIMER -->|sample_tick pulse| DMA
-    DMA -->|Raw Sample Stream| FIR
-    FIR -->|Filtered Stream| DMA
-    DMA -->|DMA Write Port| SBUF
-    SBUF -->|VGA Read Port| VGA
-    VGA -->|HSYNC, VSYNC, RGB444| DISP
+        ADC["ADC / SPI<br/>Behavioral Model"]
+        DMA["DMA<br/>Controller"]
+        FIR["16-Tap<br/>FIR Filter"]
+        SBUF["Dual-Port<br/>Sample Buffer"]
+        VGA["VGA<br/>Controller"]
+        DISP["VGA Monitor /<br/>Checker"]
 
-    GPIO -->|Scale / Trigger Commands| PIC
-    UART -->|Telemetry / Logs| HOST
+        ADC -->|Raw SPI Samples| DMA
+        DMA -->|Raw Samples| FIR
+        FIR -->|Filtered Samples| DMA
+        DMA -->|DMA Write| SBUF
+        SBUF -->|VGA Read| VGA
+        VGA -->|HSYNC / VSYNC / RGB444| DISP
+    end
 
-    TIMER -.->|irq_timer| PIC
-    DMA -.->|irq_dma_done / irq_dma_err| PIC
-    UART -.->|irq_uart| PIC
-    GPIO -.->|irq_gpio| PIC
-    VGA -.->|irq_vga_frame| PIC
-    FIR -.->|irq_fir| PIC
-    WDT -.->|nmi_prewarn| PIC
+    %% =========================
+    %% CONTROL PATH
+    %% =========================
+    subgraph CONTROL["Control & Interrupt Path"]
+        direction LR
 
-    PIC -->|Interrupts| CPU
+        GPIO["GPIO<br/>User Buttons"]
+        TIMER["System<br/>Timer"]
+        UART["AXI UART"]
+        FIR_IRQ["FIR"]
+        DMA_IRQ["DMA"]
+        VGA_IRQ["VGA"]
+        PIC["Core PIC /<br/>Interrupt Controller"]
+        CPU["VeeR EL2<br/>RISC-V Core"]
+        HOST["Host Console /<br/>Terminal"]
 
-    WDT -->|wdt_reset| CPU
-    WDT -->|wdt_reset| BUS
+        GPIO -->|Scale / Trigger| PIC
+        TIMER -.->|irq_timer| PIC
+        DMA_IRQ -.->|irq_dma_done / irq_dma_err| PIC
+        UART -.->|irq_uart| PIC
+        GPIO -.->|irq_gpio| PIC
+        VGA_IRQ -.->|irq_vga_frame| PIC
+        FIR_IRQ -.->|irq_fir| PIC
+
+        PIC -->|Interrupts| CPU
+        UART -->|Telemetry / Logs| HOST
+    end
+
+    %% =========================
+    %% WATCHDOG / RESET PATH
+    %% =========================
+    subgraph SAFETY["Safety / Reset Path"]
+        direction LR
+
+        WDT["Watchdog<br/>Timer"]
+        WDT -->|nmi_prewarn| PIC
+        WDT -->|wdt_reset| CPU
+        WDT -->|wdt_reset| BUS["AXI<br/>Interconnect"]
+    end
+
+    %% =========================
+    %% CROSS-CONNECTIONS
+    %% =========================
+    TIMER -->|sample_tick| DMA
 ```
 
 ### 2.3 Data-Flow Pipeline
