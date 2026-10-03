@@ -2,21 +2,12 @@
 // Module      : dma_controller.sv
 // Description : Autonomous Signal Acquisition & Streaming DMA Controller
 // Specification: Architecture Document Section 8.6
-//   - Registers:
-//       0x00: DMA_CTRL     [0] START, [1] ABORT
-//       0x04: DMA_SRC_ADDR [31:0] ADDR (0 = ADC SPI, >0 = Memory)
-//       0x08: DMA_DST_ADDR [31:0] ADDR (Target address pointer)
-//       0x0C: DMA_LEN      [15:0] LEN  (Transfer sample length)
-//       0x10: DMA_TIMEOUT  [31:0] CYCLES
-//       0x14: DMA_STATUS   [0] BUSY, [1] DONE, [2] OVF, [3] UNDERRUN, [4] TIMEOUT, [5] ERR
-//   - Cross-IP Connections:
-//       Input : sample_tick (from Timer)
-//       SPI   : adc_spi_sck, adc_spi_mosi, adc_spi_miso, adc_spi_cs_n
-//       FIR   : fir_sample_in, fir_sample_valid_in, fir_sample_out, fir_sample_valid_out
-//       SBUF  : sbuf_waddr, sbuf_wdata, sbuf_we
-//       IRQs  : irq_dma_done, irq_dma_err
+//   - Interacts with SPI Master (0x4000_C000) for ADC sample collection
+//   - Routes raw stream to FIR Filter and filtered stream to Ping-Pong Sample Buffer
+//   - Asserts buf_swap_req and irq_dma_done on block completion
 // =============================================================================
 
+`resetall
 `timescale 1ns / 1ps
 `default_nettype none
 
@@ -31,7 +22,11 @@ module dma_controller #(
     // Timer Acquisition Strobe
     input  wire                      sample_tick,
 
-    // SPI Master Interface to ADC Model
+    // Hardware Interface to SPI Controller
+    input  wire                      spi_sample_ready,
+    input  wire [15:0]               spi_sample_data,
+
+    // Legacy / Direct SPI Pins (pass-through / fallback)
     output reg                       adc_spi_sck,
     output reg                       adc_spi_mosi,
     input  wire                      adc_spi_miso,
@@ -43,10 +38,11 @@ module dma_controller #(
     input  wire signed [15:0]        fir_sample_out,
     input  wire                      fir_sample_valid_out,
 
-    // Sample Buffer Write Port
+    // Ping-Pong Sample Buffer Interface
     output reg  [BUF_ADDR_WIDTH-1:0] sbuf_waddr,
     output reg  [15:0]               sbuf_wdata,
     output reg                       sbuf_we,
+    output reg                       buf_swap_req,
 
     // AXI4-Lite Slave CSR Interface
     input  wire [ADDR_WIDTH-1:0]     s_axi_awaddr,
@@ -98,21 +94,16 @@ module dma_controller #(
     // DMA Control FSM
     // -------------------------------------------------------------------------
     localparam STATE_IDLE      = 3'd0;
-    localparam STATE_WAIT_TICK = 3'd1;
-    localparam STATE_SPI_XFER  = 3'd2;
-    localparam STATE_TO_FIR    = 3'd3;
-    localparam STATE_FROM_FIR  = 3'd4;
-    localparam STATE_WRITE_BUF = 3'd5;
-    localparam STATE_COMPLETE  = 3'd6;
+    localparam STATE_WAIT_SAMP = 3'd1;
+    localparam STATE_TO_FIR    = 3'd2;
+    localparam STATE_FROM_FIR  = 3'd3;
+    localparam STATE_WRITE_BUF = 3'd4;
+    localparam STATE_COMPLETE  = 3'd5;
 
     reg [2:0]  state;
     reg [15:0] samples_transferred;
     reg [31:0] timeout_counter;
-
-    // SPI Engine Registers
-    reg [4:0]  spi_bit_cnt;
-    reg [15:0] spi_rx_shift;
-    reg [3:0]  spi_clk_div;
+    reg [15:0] captured_sample;
 
     // -------------------------------------------------------------------------
     // AXI4-Lite Write Channel
@@ -141,22 +132,22 @@ module dma_controller #(
             dma_err             <= 1'b0;
             samples_transferred <= 16'd0;
             timeout_counter     <= 32'd0;
+            captured_sample     <= 16'd0;
 
             adc_spi_sck         <= 1'b0;
             adc_spi_mosi        <= 1'b0;
             adc_spi_cs_n        <= 1'b1;
-            spi_bit_cnt         <= 5'd0;
-            spi_rx_shift        <= 16'd0;
-            spi_clk_div         <= 4'd0;
 
             fir_sample_in       <= 16'sd0;
             fir_sample_valid_in <= 1'b0;
             sbuf_waddr          <= {BUF_ADDR_WIDTH{1'b0}};
             sbuf_wdata          <= 16'd0;
             sbuf_we             <= 1'b0;
+            buf_swap_req        <= 1'b0;
         end else begin
             sbuf_we             <= 1'b0;
             fir_sample_valid_in <= 1'b0;
+            buf_swap_req        <= 1'b0;
 
             // Handle W1C status clears from AXI
             if (w1c_done_req)     dma_done         <= 1'b0;
@@ -168,8 +159,6 @@ module dma_controller #(
             // Handle Start/Abort commands
             if (abort_req) begin
                 dma_busy     <= 1'b0;
-                adc_spi_cs_n <= 1'b1;
-                adc_spi_sck  <= 1'b0;
                 state        <= STATE_IDLE;
             end else if (start_req) begin
                 dma_busy            <= 1'b1;
@@ -177,53 +166,32 @@ module dma_controller #(
                 samples_transferred <= 16'd0;
                 sbuf_waddr          <= dma_dst_addr[BUF_ADDR_WIDTH-1:0];
                 timeout_counter     <= 32'd0;
-                state               <= STATE_WAIT_TICK;
-            end else begin
+                state               <= STATE_WAIT_SAMP;
+            end else if (dma_busy) begin
+                // Check transfer timeout
+                if (timeout_counter >= dma_timeout) begin
+                    dma_timeout_flag <= 1'b1;
+                    dma_busy         <= 1'b0;
+                    state            <= STATE_IDLE;
+                end else begin
+                    timeout_counter <= timeout_counter + 1'b1;
+                end
+
                 case (state)
-                    STATE_IDLE: begin
-                        timeout_counter <= 32'd0;
-                        adc_spi_cs_n    <= 1'b1;
-                        adc_spi_sck     <= 1'b0;
-                    end
-
-                    STATE_WAIT_TICK: begin
-                        timeout_counter <= timeout_counter + 1'b1;
-                        if (timeout_counter > dma_timeout && dma_timeout != 32'd0) begin
-                            dma_timeout_flag <= 1'b1;
-                            dma_busy         <= 1'b0;
-                            state            <= STATE_IDLE;
+                    STATE_WAIT_SAMP: begin
+                        // Triggered on sample_ready from SPI controller or sample_tick
+                        if (spi_sample_ready) begin
+                            captured_sample <= spi_sample_data;
+                            state           <= STATE_TO_FIR;
                         end else if (sample_tick) begin
-                            timeout_counter <= 32'd0;
-                            adc_spi_cs_n    <= 1'b0;
-                            spi_bit_cnt     <= 5'd16;
-                            spi_clk_div     <= 4'd0;
-                            state           <= STATE_SPI_XFER;
-                        end
-                    end
-
-                    STATE_SPI_XFER: begin
-                        // Fast SPI transfer: divide clk by 4
-                        if (spi_clk_div == 4'd3) begin
-                            spi_clk_div <= 4'd0;
-                        end else begin
-                            spi_clk_div <= spi_clk_div + 1'b1;
-                        end
-
-                        if (spi_clk_div == 4'd1) begin
-                            adc_spi_sck <= 1'b1;
-                            spi_rx_shift <= {spi_rx_shift[14:0], adc_spi_miso};
-                        end else if (spi_clk_div == 4'd3) begin
-                            adc_spi_sck <= 1'b0;
-                            spi_bit_cnt <= spi_bit_cnt - 1'b1;
-                            if (spi_bit_cnt == 5'd1) begin
-                                adc_spi_cs_n <= 1'b1;
-                                state        <= STATE_TO_FIR;
-                            end
+                            // Fallback if SPI controller data already waiting
+                            captured_sample <= spi_sample_data;
+                            state           <= STATE_TO_FIR;
                         end
                     end
 
                     STATE_TO_FIR: begin
-                        fir_sample_in       <= spi_rx_shift;
+                        fir_sample_in       <= $signed(captured_sample);
                         fir_sample_valid_in <= 1'b1;
                         state               <= STATE_FROM_FIR;
                     end
@@ -239,17 +207,19 @@ module dma_controller #(
                     STATE_WRITE_BUF: begin
                         sbuf_waddr          <= sbuf_waddr + 1'b1;
                         samples_transferred <= samples_transferred + 1'b1;
-                        if (samples_transferred + 1'b1 >= dma_len) begin
-                            dma_done <= 1'b1;
-                            dma_busy <= 1'b0;
-                            state    <= STATE_COMPLETE;
+
+                        if ((samples_transferred + 1'b1) >= dma_len) begin
+                            state <= STATE_COMPLETE;
                         end else begin
-                            state    <= STATE_WAIT_TICK;
+                            state <= STATE_WAIT_SAMP;
                         end
                     end
 
                     STATE_COMPLETE: begin
-                        state <= STATE_IDLE;
+                        dma_done     <= 1'b1;
+                        dma_busy     <= 1'b0;
+                        buf_swap_req <= 1'b1; // Trigger Ping-Pong double buffer swap!
+                        state        <= STATE_IDLE;
                     end
 
                     default: state <= STATE_IDLE;
@@ -259,23 +229,24 @@ module dma_controller #(
     end
 
     // -------------------------------------------------------------------------
-    // AXI4-Lite Write Handshake & Configuration Registers
+    // AXI4-Lite Handshake Registers
     // -------------------------------------------------------------------------
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            s_axi_awready  <= 1'b0;
-            s_axi_wready   <= 1'b0;
-            s_axi_bvalid   <= 1'b0;
-            s_axi_bresp    <= 2'b00;
-            aw_done        <= 1'b0;
-            w_done         <= 1'b0;
-            awaddr_latched <= {ADDR_WIDTH{1'b0}};
+            s_axi_awready   <= 1'b0;
+            s_axi_wready    <= 1'b0;
+            s_axi_bvalid    <= 1'b0;
+            s_axi_bresp     <= 2'b00;
+            aw_done         <= 1'b0;
+            w_done          <= 1'b0;
+            awaddr_latched  <= {ADDR_WIDTH{1'b0}};
 
-            dma_src_addr   <= 32'd0;
-            dma_dst_addr   <= 32'd0;
-            dma_len        <= 16'd0;
-            dma_timeout    <= 32'h0000_FFFF;
+            dma_src_addr    <= 32'h4000_C00C; // Default: SPI_RXDATA register!
+            dma_dst_addr    <= 32'h4001_6000; // Default: Sample Buffer!
+            dma_len         <= 16'd2048;      // Default: Ping-Pong block length
+            dma_timeout     <= 32'h000F_FFFF;
         end else begin
+            // Address handshake
             if (s_axi_awvalid && !aw_done) begin
                 s_axi_awready  <= 1'b1;
                 awaddr_latched <= s_axi_awaddr;
@@ -284,6 +255,7 @@ module dma_controller #(
                 s_axi_awready  <= 1'b0;
             end
 
+            // Data handshake
             if (s_axi_wvalid && !w_done) begin
                 s_axi_wready <= 1'b1;
                 w_done       <= 1'b1;
@@ -291,7 +263,11 @@ module dma_controller #(
                 s_axi_wready <= 1'b0;
             end
 
+            // Register write execution
             if (aw_done && w_done && !s_axi_bvalid) begin
+                s_axi_bvalid <= 1'b1;
+                s_axi_bresp  <= 2'b00;
+
                 case (awaddr_latched[7:0])
                     8'h04: dma_src_addr <= s_axi_wdata;
                     8'h08: dma_dst_addr <= s_axi_wdata;
@@ -299,10 +275,9 @@ module dma_controller #(
                     8'h10: dma_timeout  <= s_axi_wdata;
                     default: ;
                 endcase
-                s_axi_bvalid <= 1'b1;
-                s_axi_bresp  <= 2'b00;
             end
 
+            // Clear response
             if (s_axi_bvalid && s_axi_bready) begin
                 s_axi_bvalid <= 1'b0;
                 aw_done      <= 1'b0;
@@ -311,9 +286,7 @@ module dma_controller #(
         end
     end
 
-    // -------------------------------------------------------------------------
-    // AXI4-Lite Read Channel
-    // -------------------------------------------------------------------------
+    // Read Channel
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             s_axi_arready <= 1'b0;
@@ -325,8 +298,9 @@ module dma_controller #(
                 s_axi_arready <= 1'b1;
                 s_axi_rvalid  <= 1'b1;
                 s_axi_rresp   <= 2'b00;
+
                 case (s_axi_araddr[7:0])
-                    8'h00: s_axi_rdata <= {31'd0, dma_busy};
+                    8'h00: s_axi_rdata <= {30'd0, 1'b0, dma_busy};
                     8'h04: s_axi_rdata <= dma_src_addr;
                     8'h08: s_axi_rdata <= dma_dst_addr;
                     8'h0C: s_axi_rdata <= {16'd0, dma_len};
@@ -345,3 +319,5 @@ module dma_controller #(
     end
 
 endmodule
+
+`resetall

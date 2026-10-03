@@ -104,7 +104,7 @@ else
 endif
 
 # VCS Compilation and Simulation Flags
-VCS_FLAGS := -full64 -sverilog -timescale=1ns/1ps -debug_access+all -kdb
+VCS_FLAGS := -full64 -sverilog -timescale=1ns/1ps -debug_access+all -kdb -v2k_generate
 SIM_FLAGS := -no_save
 
 .PHONY: all help compile sim run verdi wave clean \

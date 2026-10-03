@@ -69,6 +69,11 @@
 ../rtl/veer_el2/design/el2_veer_wrapper.sv
 ../rtl/veer_el2/design/veer_wrapper.sv
 
+../lib/cdc_sync.sv
+../lib/sync_fifo.sv
+../lib/axi4_to_axil_lite.sv
+../lib/axi_ram.sv
+
 ../rtl/axi_uart/rtl/axi_internal_fifo.v
 ../rtl/axi_uart/rtl/uart_parity_bit_compute.v
 ../rtl/axi_uart/rtl/uart_transmitter.v
@@ -76,13 +81,23 @@
 ../rtl/axi_uart/rtl/uart_controller.v
 ../rtl/axi_uart/rtl/axi_uart_top.v
 
+../rtl/timer/timer.sv
+../rtl/gpio/gpio.sv
+../rtl/spi_controller/spi_controller.sv
+../rtl/watchdog/watchdog.sv
+../rtl/fir_filter/fir_filter.sv
+../rtl/sample_buffer/sample_buffer.sv
+../rtl/dma_controller/dma_controller.sv
+../rtl/vga_controller/vga_controller.sv
+
 ../rtl/interconnect/priority_encoder.v
 ../rtl/interconnect/arbiter.v
 ../rtl/interconnect/axi_interconnect.v
-../rtl/interconnect/axi_interconnect_wrap_3x10.v
+../rtl/interconnect/axi_interconnect_wrap_5x20.v
 ../rtl/axi_interconnect_uart_top.v
 
 ../rtl/interconnect/axi_adapter_64_to_32.sv
 ../rtl/soc_top.sv
 
+../tb/adc_model.sv
 ../tb/tb_soc_top.sv
