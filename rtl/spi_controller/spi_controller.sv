@@ -68,7 +68,7 @@ module spi_controller #(
 );
 
     // -------------------------------------------------------------------------
-    // Control / Status Registers
+    // Control / Status Registers & Internal 32-Entry RX FIFO
     // -------------------------------------------------------------------------
     reg        reg_spi_en;
     reg        reg_auto_trigger;
@@ -79,8 +79,18 @@ module spi_controller #(
     reg        reg_rx_valid;
     reg        reg_busy;
 
+    // Synchronous 32-entry RX FIFO
+    localparam FIFO_DEPTH = 32;
+    localparam FIFO_ADDR_W = 5;
+    reg [15:0] rx_fifo_mem [0:FIFO_DEPTH-1];
+    reg [FIFO_ADDR_W:0] fifo_wr_ptr;
+    reg [FIFO_ADDR_W:0] fifo_rd_ptr;
+    wire [FIFO_ADDR_W:0] fifo_count = fifo_wr_ptr - fifo_rd_ptr;
+    wire fifo_empty = (fifo_wr_ptr == fifo_rd_ptr);
+    wire fifo_full  = (fifo_count == FIFO_DEPTH);
+
     assign sample_data = reg_rxdata;
-    assign irq_spi     = reg_rx_valid;
+    assign irq_spi     = reg_rx_valid || !fifo_empty;
 
     // -------------------------------------------------------------------------
     // SPI Master State Machine (Mode 0: CPOL=0, CPHA=0)
@@ -89,6 +99,9 @@ module spi_controller #(
     localparam STATE_LEAD      = 2'd1;
     localparam STATE_TRANSFER  = 2'd2;
     localparam STATE_TRAIL     = 2'd3;
+
+    reg [ADDR_WIDTH-1:0] araddr_latched;
+    reg                  fifo_flush_req;
 
     reg [1:0]  spi_state;
     reg [7:0]  clk_div_cnt;
@@ -182,6 +195,12 @@ module spi_controller #(
                         sample_ready <= 1'b1;
                         reg_busy     <= 1'b0;
                         spi_state    <= STATE_IDLE;
+
+                        // Push incoming ADC sample to internal FIFO
+                        if (!fifo_full) begin
+                            rx_fifo_mem[fifo_wr_ptr[FIFO_ADDR_W-1:0]] <= rx_shift_reg;
+                            fifo_wr_ptr <= fifo_wr_ptr + 1'b1;
+                        end
                     end else begin
                         clk_div_cnt <= clk_div_cnt + 1'b1;
                     end
@@ -191,6 +210,17 @@ module spi_controller #(
             // Clear rx_valid on register read or write-1-to-clear
             if (s_axi_arvalid && s_axi_arready && (s_axi_araddr[7:0] == 8'h0C)) begin
                 reg_rx_valid <= 1'b0;
+            end
+
+            // Pop FIFO on successful AXI read handshake from 0x0C
+            if (s_axi_rvalid && s_axi_rready && (araddr_latched[7:0] == 8'h0C) && !fifo_empty) begin
+                fifo_rd_ptr <= fifo_rd_ptr + 1'b1;
+            end
+
+            // Handle FIFO flush command
+            if (fifo_flush_req) begin
+                fifo_wr_ptr <= { (FIFO_ADDR_W+1){1'b0} };
+                fifo_rd_ptr <= { (FIFO_ADDR_W+1){1'b0} };
             end
         end
     end
@@ -216,7 +246,10 @@ module spi_controller #(
             reg_prescaler    <= 4'd2; // 100MHz / 4 = 25MHz SCK
             reg_txdata       <= 16'd0;
             reg_manual_cs    <= 1'b1;
+            fifo_flush_req   <= 1'b0;
         end else begin
+            fifo_flush_req <= 1'b0;
+
             // Address handshake
             if (s_axi_awvalid && !aw_done) begin
                 s_axi_awready  <= 1'b1;
@@ -251,6 +284,9 @@ module spi_controller #(
                     8'h10: begin // SPI_CS
                         reg_manual_cs <= s_axi_wdata[0];
                     end
+                    8'h18: begin // SPI_FIFO_CTRL
+                        if (s_axi_wdata[0]) fifo_flush_req <= 1'b1;
+                    end
                     default: ;
                 endcase
             end
@@ -266,22 +302,25 @@ module spi_controller #(
     // Read Channel
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            s_axi_arready <= 1'b0;
-            s_axi_rvalid  <= 1'b0;
-            s_axi_rdata   <= {DATA_WIDTH{1'b0}};
-            s_axi_rresp   <= 2'b00;
+            s_axi_arready  <= 1'b0;
+            s_axi_rvalid   <= 1'b0;
+            s_axi_rdata    <= {DATA_WIDTH{1'b0}};
+            s_axi_rresp    <= 2'b00;
+            araddr_latched <= {ADDR_WIDTH{1'b0}};
         end else begin
             if (s_axi_arvalid && !s_axi_rvalid) begin
-                s_axi_arready <= 1'b1;
-                s_axi_rvalid  <= 1'b1;
-                s_axi_rresp   <= 2'b00;
+                s_axi_arready  <= 1'b1;
+                s_axi_rvalid   <= 1'b1;
+                s_axi_rresp    <= 2'b00;
+                araddr_latched <= s_axi_araddr;
 
                 case (s_axi_araddr[7:0])
                     8'h00: s_axi_rdata <= {24'd0, reg_prescaler, 2'd0, reg_auto_trigger, reg_spi_en};
-                    8'h04: s_axi_rdata <= {29'd0, 1'b1, reg_rx_valid, reg_busy};
+                    8'h04: s_axi_rdata <= {27'd0, fifo_full, !fifo_empty, 1'b1, reg_rx_valid, reg_busy};
                     8'h08: s_axi_rdata <= {16'd0, reg_txdata};
-                    8'h0C: s_axi_rdata <= {16'd0, reg_rxdata};
+                    8'h0C: s_axi_rdata <= {16'd0, fifo_empty ? reg_rxdata : rx_fifo_mem[fifo_rd_ptr[FIFO_ADDR_W-1:0]]};
                     8'h10: s_axi_rdata <= {31'd0, reg_manual_cs};
+                    8'h14: s_axi_rdata <= {24'd0, 2'b00, fifo_count};
                     default: s_axi_rdata <= 32'd0;
                 endcase
             end else begin

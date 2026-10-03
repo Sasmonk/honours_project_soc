@@ -71,10 +71,23 @@ module fir_filter #(
     assign irq_fir = coef_load_done || pipe_ovf;
 
     // -------------------------------------------------------------------------
-    // MAC Datapath & Delay Line
+    // MAC Datapath & Delay Line (Driven by Streaming or AXI Memory-Mapped Port)
     // -------------------------------------------------------------------------
     reg signed [15:0] delay_line [0:MAX_TAPS-1];
     integer i;
+
+    // AXI Memory-Mapped Sample Data Registers
+    reg signed [15:0] axi_sample_in;
+    reg               axi_sample_in_valid;
+    reg signed [15:0] axi_sample_out;
+    reg               axi_sample_out_valid;
+    reg               axi_data_in_strobe;
+    reg signed [15:0] axi_data_in_val;
+    reg               axi_data_out_read_strobe;
+
+    // Unified sample input mux
+    wire signed [15:0] eff_sample_in = axi_sample_in_valid ? axi_sample_in : fir_sample_in;
+    wire               eff_valid_in  = axi_sample_in_valid || fir_sample_valid_in;
 
     // MAC accumulation
     reg signed [31:0] mac_acc;
@@ -84,57 +97,83 @@ module fir_filter #(
         if (!rst_n) begin
             fir_sample_out       <= 16'sd0;
             fir_sample_valid_out <= 1'b0;
+            axi_sample_out       <= 16'sd0;
+            axi_sample_out_valid <= 1'b0;
+            axi_sample_in_valid  <= 1'b0;
+            axi_sample_in        <= 16'sd0;
             mac_acc              <= 32'sd0;
             mac_valid            <= 1'b0;
             pipe_ovf             <= 1'b0;
             for (i = 0; i < MAX_TAPS; i = i + 1) begin
                 delay_line[i] <= 16'sd0;
             end
-        end else if (fir_sample_valid_in) begin
-            if (fir_bypass || !fir_en) begin
-                // Hardware bypass: pass through with 1 cycle registration
-                fir_sample_out       <= fir_sample_in;
-                fir_sample_valid_out <= 1'b1;
-            end else begin
-                // Shift delay line
-                delay_line[0] <= fir_sample_in;
-                for (i = 1; i < MAX_TAPS; i = i + 1) begin
-                    delay_line[i] <= delay_line[i-1];
-                end
-
-                // Multiply-accumulate across active taps
-                // Note: Q1.15 * Q1.15 = Q2.30
-                begin : mac_loop
-                    reg signed [39:0] acc;
-                    reg signed [31:0] mult;
-                    integer k;
-                    acc = 40'sd0;
-                    for (k = 0; k < MAX_TAPS; k = k + 1) begin
-                        if (k < fir_ntaps) begin
-                            mult = (k == 0) ? (fir_sample_in * coef_mem[0])
-                                            : (delay_line[k-1] * coef_mem[k]);
-                            acc = acc + {{8{mult[31]}}, mult};
-                        end
-                    end
-
-                    // Check overflow beyond 32-bit Q2.30 range
-                    if (acc > 40'sh00_7FFF_FFFF || acc < -40'sh00_8000_0000) begin
-                        pipe_ovf <= 1'b1;
-                    end
-
-                    // Scale Q2.30 down to Q1.15 by shifting right by 15 with saturation
-                    if (acc[39:30] == 10'd0 || acc[39:30] == 10'h3FF) begin
-                        fir_sample_out <= acc[30:15];
-                    end else if (acc[39]) begin
-                        fir_sample_out <= -16'sd32768; // Negative saturation
-                    end else begin
-                        fir_sample_out <= 16'sd32767;  // Positive saturation
-                    end
-                    fir_sample_valid_out <= 1'b1;
-                end
-            end
         end else begin
-            fir_sample_valid_out <= 1'b0;
+            if (eff_valid_in) begin
+                axi_sample_in_valid <= 1'b0; // Consumed
+
+                if (fir_bypass || !fir_en) begin
+                    // Hardware bypass: pass through with 1 cycle registration
+                    fir_sample_out       <= eff_sample_in;
+                    fir_sample_valid_out <= 1'b1;
+                    axi_sample_out       <= eff_sample_in;
+                    axi_sample_out_valid <= 1'b1;
+                end else begin
+                    // Shift delay line
+                    delay_line[0] <= eff_sample_in;
+                    for (i = 1; i < MAX_TAPS; i = i + 1) begin
+                        delay_line[i] <= delay_line[i-1];
+                    end
+
+                    // Multiply-accumulate across active taps
+                    // Note: Q1.15 * Q1.15 = Q2.30
+                    begin : mac_loop
+                        reg signed [39:0] acc;
+                        reg signed [31:0] mult;
+                        reg signed [15:0] sat_out;
+                        integer k;
+                        acc = 40'sd0;
+                        for (k = 0; k < MAX_TAPS; k = k + 1) begin
+                            if (k < fir_ntaps) begin
+                                mult = (k == 0) ? (eff_sample_in * coef_mem[0])
+                                                : (delay_line[k-1] * coef_mem[k]);
+                                acc = acc + {{8{mult[31]}}, mult};
+                            end
+                        end
+
+                        // Check overflow beyond 32-bit Q2.30 range
+                        if (acc > 40'sh00_7FFF_FFFF || acc < -40'sh00_8000_0000) begin
+                            pipe_ovf <= 1'b1;
+                        end
+
+                        // Scale Q2.30 down to Q1.15 by shifting right by 15 with saturation
+                        if (acc[39:30] == 10'd0 || acc[39:30] == 10'h3FF) begin
+                            sat_out = acc[30:15];
+                        end else if (acc[39]) begin
+                            sat_out = -16'sd32768; // Negative saturation
+                        end else begin
+                            sat_out = 16'sd32767;  // Positive saturation
+                        end
+
+                        fir_sample_out       <= sat_out;
+                        fir_sample_valid_out <= 1'b1;
+                        axi_sample_out       <= sat_out;
+                        axi_sample_out_valid <= 1'b1;
+                    end
+                end
+            end else begin
+                fir_sample_valid_out <= 1'b0;
+            end
+
+            // Latch AXI write data into axi_sample_in
+            if (axi_data_in_strobe) begin
+                axi_sample_in       <= axi_data_in_val;
+                axi_sample_in_valid <= 1'b1;
+            end
+
+            // Clear axi_sample_out_valid on AXI read
+            if (axi_data_out_read_strobe) begin
+                axi_sample_out_valid <= 1'b0;
+            end
         end
     end
 
@@ -147,13 +186,15 @@ module fir_filter #(
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            s_axi_awready  <= 1'b0;
-            s_axi_wready   <= 1'b0;
-            s_axi_bvalid   <= 1'b0;
-            s_axi_bresp    <= 2'b00;
-            aw_done        <= 1'b0;
-            w_done         <= 1'b0;
-            awaddr_latched <= {ADDR_WIDTH{1'b0}};
+            s_axi_awready      <= 1'b0;
+            s_axi_wready       <= 1'b0;
+            s_axi_bvalid       <= 1'b0;
+            s_axi_bresp        <= 2'b00;
+            aw_done            <= 1'b0;
+            w_done             <= 1'b0;
+            awaddr_latched     <= {ADDR_WIDTH{1'b0}};
+            axi_data_in_strobe <= 1'b0;
+            axi_data_in_val    <= 16'sd0;
 
             fir_en         <= 1'b0;
             fir_bypass     <= 1'b1; // Default: bypass mode active
@@ -163,6 +204,8 @@ module fir_filter #(
                 coef_mem[i] <= 16'sd0;
             end
         end else begin
+            axi_data_in_strobe <= 1'b0;
+
             // Address Write
             if (s_axi_awvalid && !aw_done) begin
                 s_axi_awready  <= 1'b1;
@@ -195,6 +238,9 @@ module fir_filter #(
                 end else if (awaddr_latched[7:0] == 8'h48) begin
                     if (s_axi_wdata[0]) coef_load_done <= 1'b0;
                     if (s_axi_wdata[1]) pipe_ovf       <= 1'b0;
+                end else if (awaddr_latched[7:0] == 8'h50) begin
+                    axi_data_in_val    <= s_axi_wdata[15:0];
+                    axi_data_in_strobe <= 1'b1;
                 end
                 s_axi_bvalid <= 1'b1;
                 s_axi_bresp  <= 2'b00;
@@ -213,11 +259,14 @@ module fir_filter #(
     // -------------------------------------------------------------------------
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            s_axi_arready <= 1'b0;
-            s_axi_rvalid  <= 1'b0;
-            s_axi_rdata   <= {DATA_WIDTH{1'b0}};
-            s_axi_rresp   <= 2'b00;
+            s_axi_arready            <= 1'b0;
+            s_axi_rvalid             <= 1'b0;
+            s_axi_rdata              <= {DATA_WIDTH{1'b0}};
+            s_axi_rresp              <= 2'b00;
+            axi_data_out_read_strobe <= 1'b0;
         end else begin
+            axi_data_out_read_strobe <= 1'b0;
+
             if (s_axi_arvalid && !s_axi_rvalid) begin
                 s_axi_arready <= 1'b1;
                 s_axi_rvalid  <= 1'b1;
@@ -231,6 +280,11 @@ module fir_filter #(
                                     coef_mem[(s_axi_araddr[7:0] - 8'h08) >> 2]};
                 end else if (s_axi_araddr[7:0] == 8'h48) begin
                     s_axi_rdata <= {30'd0, pipe_ovf, coef_load_done};
+                end else if (s_axi_araddr[7:0] == 8'h54) begin
+                    s_axi_rdata <= {{16{axi_sample_out[15]}}, axi_sample_out};
+                    axi_data_out_read_strobe <= 1'b1;
+                end else if (s_axi_araddr[7:0] == 8'h58) begin
+                    s_axi_rdata <= {30'd0, axi_sample_out_valid, !axi_sample_in_valid};
                 end else begin
                     s_axi_rdata <= 32'd0;
                 end

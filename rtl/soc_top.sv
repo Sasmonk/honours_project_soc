@@ -1456,6 +1456,25 @@ import el2_pkg::*;
         .m_axil_rdata(dma_axil_rdata), .m_axil_rresp(dma_axil_rresp), .m_axil_rvalid(dma_axil_rvalid), .m_axil_rready(dma_axil_rready)
     );
 
+    // -------------------------------------------------------------------------
+    // ARCHITECTURAL REFACTORING NOTE (Decoupled Modular Streaming Architecture):
+    // -------------------------------------------------------------------------
+    // u_dma has been upgraded to include an independent AXI4 Master Interface
+    // (m_axi_aw*, m_axi_w*, m_axi_b*, m_axi_ar*, m_axi_r*).
+    //
+    // PENDING / INCOMPLETE INTEGRATION STEP:
+    // To complete full bus-centric DMA decoupling across the entire SoC:
+    // 1. Wire the AXI4 Master port of u_dma to crossbar slave port s03
+    //    (u_interconnect_uart.s03_axi_*).
+    // 2. This enables firmware to program DMA_SRC_ADDR and DMA_DST_ADDR to
+    //    arbitrarily move data between:
+    //      - SPI RX FIFO (0x4000_C00C) -> On-Chip DMEM (0x1002_0000)
+    //      - On-Chip DMEM (0x1002_0000) -> FIR Input (0x4001_2050)
+    //      - FIR Output (0x4001_2054) -> Ping-Pong Sample Buffer (0x4001_6000)
+    //      - Or direct SPI FIFO -> Sample Buffer streaming.
+    // 3. Keep all VeeR EL2 core unused inputs (dma_axi_*, soft_int, DCCM/ICCM
+    //    export douts) strictly tied to 0 to prevent simulation X-poisoning.
+    // -------------------------------------------------------------------------
     dma_controller u_dma (
         .clk(clk), .rst_n(rst_n),
         .sample_tick(sample_tick),

@@ -203,6 +203,9 @@ module sample_buffer #(
     reg                  aw_done;
     reg                  w_done;
 
+    wire [BUF_ADDR_WIDTH-1:0] axi_wr_sample_idx = awaddr_latched[BUF_ADDR_WIDTH:1];
+    wire [BUF_ADDR_WIDTH-1:0] eff_axi_waddr = ping_pong_en ? {wr_buf_sel, axi_wr_sample_idx[BUF_ADDR_WIDTH-2:0]} : axi_wr_sample_idx;
+
     always @(posedge clk_sys or negedge rst_sys_n) begin
         if (!rst_sys_n) begin
             s_axi_awready  <= 1'b0;
@@ -240,6 +243,18 @@ module sample_buffer #(
                         // Manual swap request
                         wr_buf_sel <= ~wr_buf_sel;
                         rd_buf_sel <= wr_buf_sel;
+                    end
+                end else if (awaddr_latched[13:0] < 14'h2000 && !buf_hold) begin
+                    // Standalone AXI Memory-Mapped Write into Active Write Bank
+                    if (s_axi_wstrb[1:0] != 2'b00) begin
+                        mem[eff_axi_waddr] <= s_axi_wdata[15:0];
+                    end
+                    if (s_axi_wstrb[3:2] != 2'b00) begin
+                        mem[eff_axi_waddr + 1'b1] <= s_axi_wdata[31:16];
+                    end
+                    // Auto-swap check on AXI write boundary
+                    if (ping_pong_en && auto_swap && (axi_wr_sample_idx[BUF_ADDR_WIDTH-2:0] >= 11'h7FE)) begin
+                        pending_swap <= 1'b1;
                     end
                 end
             end
