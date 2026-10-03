@@ -29,5 +29,6 @@ vc_hdrs.h
 **/verdiLog/
 **/csrc/
 **/simv*
-**/*.daidir/
 **/*_session.vim
+.~lock.*
+*.lock
