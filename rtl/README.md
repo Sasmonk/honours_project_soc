@@ -46,14 +46,16 @@ The system combines high-performance multi-master AXI4 crossbar switching with d
 
 ## 2. Top-Level Integration (`axi_interconnect_uart_top.v`)
 
-The module `axi_interconnect_uart_top.v` provides a validated subsystem uniting the **3-Master x 10-Slave AXI Interconnect** with the **AXI4-Lite UART IP core**:
+The module `axi_interconnect_uart_top.v` provides a validated subsystem uniting the **5-Master x 20-Slave AXI Interconnect** with the **AXI4-Lite UART IP core**:
 
-- **Slave Ports (`s00`, `s01`, `s02`):** Exposed to connect bus masters:
-  - `s00`: VeeR EL2 RISC-V Core Load/Store and Instruction Fetch port.
-  - `s01`: DMA Controller Master for streaming sample data.
-  - `s02`: External Debug Module or secondary diagnostic master.
+- **Slave Ports (`s00`..`s04`):** Exposed to connect bus masters:
+  - `s00`: VeeR EL2 RISC-V Core Load/Store Unit (LSU) port.
+  - `s01`: VeeR EL2 Instruction Fetch Unit (IFU) port.
+  - `s02`: VeeR EL2 System Bus / Debug (SB) port.
+  - `s03`: DMA Controller Master for streaming sample data.
+  - `s04`: Accelerator / co-processor master (reserved for expansion).
 - **Master Port 00 (`m00`):** Connected internally to `axi_uart_top`, providing instant serial communication out-of-the-box.
-- **Master Ports 01..09 (`m01..m09`):** Exported to the module boundary for peripheral and memory attachment (AES core, memories, accelerators).
+- **Master Ports 01..19 (`m01..m19`):** Exported to the module boundary for peripheral and memory attachment (AES core, memories, accelerators, etc.).
 - **Physical Pins:** Serial lines `uart_rx` and `uart_tx` along with interrupt `uart_irq` are routed to the top-level boundary.
 
 ---
@@ -63,7 +65,7 @@ The module `axi_interconnect_uart_top.v` provides a validated subsystem uniting 
 | Subsystem / IP Core | Source Location | Provenance / Origin | Description | Documentation |
 | :--- | :--- | :---: | :--- | :---: |
 | **VeeR EL2 Core** | [`veer_el2/`](veer_el2/) | **Open-Source**<br/>(CHIPS Alliance / WD, Apache 2.0) | Western Digital RV32IMC RISC-V 4-stage pipelined core with ICCM/DCCM and PIC | [**README**](veer_el2/README.md) |
-| **AXI Interconnect** | [`interconnect/`](interconnect/) | **Open-Source**<br/>(Alex Forencich, BSD 2-Clause) | Multi-master parameterized AXI4 crossbar with round-robin arbitration (3x10 and 3x14) | [**README**](interconnect/README.md) |
+| **AXI Interconnect** | [`interconnect/`](interconnect/) | **Open-Source**<br/>(Alex Forencich, BSD 2-Clause) | Multi-master parameterized AXI4 crossbar with round-robin arbitration (**5x20**) | [**README**](interconnect/README.md) |
 | **AXI UART** | [`axi_uart/`](axi_uart/) | **Open-Source**<br/>(BSC / Abraham J. Ruiz R., GPL-3.0) | 16550-compatible AXI4-Lite UART with 16-byte FIFOs, programmable baud, and interrupts | [**README**](axi_uart/README.md) |
 | **Acquisition Timer** | [`timer/`](timer/) | **Custom Developed**<br/>(Honours Spec §8.5) | High-resolution 24-bit down-counter with auto-reload generating periodic `sample_tick` strobes | [**README**](timer/README.md) |
 | **GPIO Controller** | [`gpio/`](gpio/) | **Custom Developed**<br/>(Honours Spec §8.8) | 16-bit GPIO with double-flop synchronizers, edge interrupt detection, and LED drive registers | [**README**](gpio/README.md) |
@@ -72,7 +74,7 @@ The module `axi_interconnect_uart_top.v` provides a validated subsystem uniting 
 | **Sample Buffer** | [`sample_buffer/`](sample_buffer/) | **Custom Developed**<br/>(Honours Spec §8.4) | 4096-entry x 16-bit True Dual-Port asynchronous RAM bridging acquisition, CPU math, and VGA display | [**README**](sample_buffer/README.md) |
 | **VGA Controller** | [`vga_controller/`](vga_controller/) | **Custom Developed**<br/>(Honours Spec §8.9) | 640x480 @ 60 Hz oscilloscope display generator with 50px graticule, trace rendering, and triggers | [**README**](vga_controller/README.md) |
 | **Watchdog Timer** | [`watchdog/`](watchdog/) | **Custom Developed**<br/>(Honours Spec §8.10) | Safety monitor with security-keyed kick, NMI pre-warning, and hardware system reset trip | [**README**](watchdog/README.md) |
-| **Subsystem Top** | [`axi_interconnect_uart_top.v`](axi_interconnect_uart_top.v) | **Custom Integrated** | Pre-integrated subsystem connecting 3 masters to UART and 9 external slave ports | [**Section 2**](#2-top-level-integration-axi_interconnect_uart_top) |
+| **Subsystem Top** | [`axi_interconnect_uart_top.v`](axi_interconnect_uart_top.v) | **Custom Integrated** | Pre-integrated subsystem connecting 5 masters to UART and 19 external slave ports | [**Section 2**](#2-top-level-integration-axi_interconnect_uart_top) |
 | **AES Core (Experimental)** | [`aes_core-master/`](aes_core-master/) | **Open-Source**<br/>(Secworks, BSD 2-Clause) | NIST FIPS-197 AES-128/256 accelerator for learning AXI memory-mapped CSR interfacing | [**README**](aes_core-master/README.md) |
 | **Shared Libraries** | [`../lib/`](../lib/) | **Custom Developed** | Clock-domain-crossing synchronizers (`cdc_sync.sv`) and synchronous FIFOs (`sync_fifo.sv`) | — |
 

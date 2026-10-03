@@ -9,9 +9,9 @@
  *    - Converts 64-bit LSU master traffic to 32-bit for Interconnect Slave Port 00 (s00)
  *    - Converts 64-bit IFU master traffic to 32-bit for Interconnect Slave Port 01 (s01)
  *    - Converts 64-bit SB debug master traffic to 32-bit for Interconnect Slave Port 02 (s02)
- * 3. 3-Master x 10-Slave AXI4 Interconnect (axi_interconnect_uart_top):
+ * 3. 5-Master x 20-Slave AXI4 Interconnect (axi_interconnect_uart_top):
  *    - Master Port 00 (M00): Dedicated internal connection to AXI4-Lite UART IP core
- *    - Master Ports 01..09 (M01..M09): Exported to boundary for external peripherals
+ *    - Master Ports 01..19 (M01..M19): Exported to boundary for external peripherals
  *      (e.g., Boot ROM, RAM, AES Accelerator, Timer, GPIO, FIR, DMA, VGA, WDT)
  * 4. UART Peripheral Interface:
  *    - uart_rx, uart_tx, and uart_irq brought out to boundary

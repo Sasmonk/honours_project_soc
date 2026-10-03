@@ -1,7 +1,7 @@
 # RISC-V Real-Time Signal Acquisition, FIR Filtering, and VGA Oscilloscope SoC
 
 [![RISC-V Core](https://img.shields.io/badge/CPU-VeeR%20EL2%20(RV32IMC)-blue.svg)](rtl/veer_el2/README.md)
-[![Interconnect](https://img.shields.io/badge/Interconnect-AXI4%20Crossbar%20(3x10%2F3x14)-brightgreen.svg)](rtl/interconnect/README.md)
+[![Interconnect](https://img.shields.io/badge/Interconnect-AXI4%20Crossbar%20(5x20)-brightgreen.svg)](rtl/interconnect/README.md)
 [![Peripherals](https://img.shields.io/badge/Peripherals-UART%20%7C%20AES%20%7C%20VGA%20%7C%20FIR-orange.svg)](rtl/README.md)
 [![EDA Tooling](https://img.shields.io/badge/EDA-Synopsys%20VCS%20%26%20Verdi-purple.svg)](#12-simulation--verification-guide)
 [![Verification](https://img.shields.io/badge/Status-Verified%20in%20RTL-success.svg)](#12-simulation--verification-guide)
@@ -81,7 +81,7 @@ Every block connects to the memory-mapped interconnect. The CPU uses this bus fo
 flowchart TB
     subgraph SOC["RISC-V Oscilloscope & Signal Processing SoC"]
         CPU["VeeR EL2 RISC-V Core<br/>(RV32IMC, 4-Stage Pipeline)"]
-        BUS["AXI4 Crossbar Interconnect<br/>(axi_interconnect_wrap_3x10 / 3x14)"]
+        BUS["AXI4 Crossbar Interconnect<br/>(axi_interconnect_wrap_5x20)"]
         
         IMEM["Instruction Memory (IMEM / ICCM)<br/>64 KB @ 0x0000_0000"]
         DMEM["Data Memory (DMEM / DCCM)<br/>64 KB @ 0x0001_0000"]
@@ -209,7 +209,7 @@ Click any IP below to explore its dedicated architecture manual, pinout, registe
 ```
 honours_project_soc-main/rtl/
 ├── veer_el2/           ──► [VeeR EL2 RISC-V Processor Core](rtl/veer_el2/README.md)
-├── interconnect/       ──► [AXI4 Crossbar Interconnect (3x10 / 3x14)](rtl/interconnect/README.md)
+├── interconnect/       ──► [AXI4 Crossbar Interconnect (5x20)](rtl/interconnect/README.md)
 ├── axi_uart/           ──► [AXI4-Lite 16550-Compatible UART](rtl/axi_uart/README.md)
 ├── timer/              ──► [Acquisition Rate Timer Core](rtl/timer/README.md)
 ├── gpio/               ──► [16-Bit General Purpose I/O Core](rtl/gpio/README.md)
@@ -227,7 +227,7 @@ honours_project_soc-main/rtl/
 | IP Core | Directory | Provenance / Origin | Primary Role | Bus Interface | Dedicated README | References & Artifacts |
 |---|---|:---:|---|---|:---:|---|
 | **VeeR EL2 Core** | `rtl/veer_el2/` | **Open-Source**<br/>(CHIPS Alliance / WD, Apache 2.0) | Central CPU executing RTOS/firmware, sequencing, and measurements | Dual AXI4 Master (IFU + LSU) | [**View README**](rtl/veer_el2/README.md) | • [Configs Manual](rtl/veer_el2/configs/README.md)<br/>• [Linker Script](rtl/veer_el2/snapshots/default/link.ld)<br/>• [Header Defines](rtl/veer_el2/snapshots/default/defines.h) |
-| **AXI Interconnect** | `rtl/interconnect/` | **Open-Source**<br/>(Alex Forencich, BSD 2-Clause) | Non-blocking crossbar routing memory and peripheral transactions | 3-Master x 10/14-Slave AXI4 | [**View README**](rtl/interconnect/README.md) | • [Wrapper Generator](scripts/axi_interconnect_wrap.py)<br/>• [3x10 Wrapper](rtl/interconnect/axi_interconnect_wrap_3x10.v)<br/>• [3x14 Wrapper](rtl/interconnect/axi_interconnect_wrap_3x14.v) |
+| **AXI Interconnect** | `rtl/interconnect/` | **Open-Source**<br/>(Alex Forencich, BSD 2-Clause) | Non-blocking crossbar routing memory and peripheral transactions | 5-Master x 20-Slave AXI4 | [**View README**](rtl/interconnect/README.md) | • [Wrapper Generator](scripts/axi_interconnect_wrap.py)<br/>• [5x20 Wrapper](rtl/interconnect/axi_interconnect_wrap_5x20.v) |
 | **AXI UART** | `rtl/axi_uart/` | **Open-Source**<br/>(BSC / Abraham J. Ruiz R., GPL-3.0) | 16550 serial console for diagnostics and measurement reporting | AXI4-Lite Slave | [**View README**](rtl/axi_uart/README.md) | • [Block Diagram (PNG)](rtl/axi_uart/doc/axi-uart.png)<br/>• [Source Diagram (VSDX)](rtl/axi_uart/doc/axi-uart.vsdx)<br/>• [Upstream Guide](rtl/axi_uart/doc/README.md) |
 | **Acquisition Timer** | `rtl/timer/` | **Custom Developed**<br/>(Honours Project Spec §8.5) | Pacing generator producing single-cycle `sample_tick` strobes | AXI4-Lite Slave (`0x8000_1000`) | [**View README**](rtl/timer/README.md) | • [Timer RTL](rtl/timer/timer.sv)<br/>• [Unit Testbench](tb/tb_timer.sv)<br/>• [Filelist](run/filelist_timer.f) |
 | **GPIO Controller** | `rtl/gpio/` | **Custom Developed**<br/>(Honours Project Spec §8.8) | Captures user buttons with double-flop sync, edge IRQ, and drives LEDs | AXI4-Lite Slave (`0x8000_2000`) | [**View README**](rtl/gpio/README.md) | • [GPIO RTL](rtl/gpio/gpio.sv)<br/>• [Unit Testbench](tb/tb_gpio.sv)<br/>• [Filelist](run/filelist_gpio.f) |
@@ -236,7 +236,7 @@ honours_project_soc-main/rtl/
 | **Sample Buffer** | `rtl/sample_buffer/` | **Custom Developed**<br/>(Honours Project Spec §8.4) | 4096x16 True Dual-Port asynchronous RAM (DMA write, CPU/VGA read) | AXI4-Lite Slave (`0x0002_0000`) | [**View README**](rtl/sample_buffer/README.md) | • [SBUF RTL](rtl/sample_buffer/sample_buffer.sv)<br/>• [Unit Testbench](tb/tb_sample_buffer.sv)<br/>• [Filelist](run/filelist_sample_buffer.f) |
 | **VGA Controller** | `rtl/vga_controller/` | **Custom Developed**<br/>(Honours Project Spec §8.9) | 640x480 @ 60 Hz oscilloscope display generator with graticule grid | AXI4-Lite Slave (`0x8000_5000`) | [**View README**](rtl/vga_controller/README.md) | • [VGA RTL](rtl/vga_controller/vga_controller.sv)<br/>• [Unit Testbench](tb/tb_vga_controller.sv)<br/>• [Filelist](run/filelist_vga.f) |
 | **Watchdog Timer** | `rtl/watchdog/` | **Custom Developed**<br/>(Honours Project Spec §8.10) | Liveness monitor with key-reload, NMI pre-warn, and hard reset trip | AXI4-Lite Slave (`0x8000_6000`) | [**View README**](rtl/watchdog/README.md) | • [Watchdog RTL](rtl/watchdog/watchdog.sv)<br/>• [Unit Testbench](tb/tb_watchdog.sv)<br/>• [Filelist](run/filelist_watchdog.f) |
-| **Subsystem Top** | `rtl/axi_interconnect_uart_top.v`| **Custom Integrated** | Pre-integrated subsystem connecting 3 masters to UART and 9 external slave ports | AXI4 Subsystem Wrapper | [**View README**](rtl/README.md) | • [Top Subsystem RTL](rtl/axi_interconnect_uart_top.v)<br/>• [VCS Script](run/run_vcs_uart_interconnect.sh)<br/>• [Signal Layout](run/uart_signals.rc) |
+| **Subsystem Top** | `rtl/axi_interconnect_uart_top.v`| **Custom Integrated** | Pre-integrated subsystem connecting 5 masters to UART and 19 external slave ports | AXI4 Subsystem Wrapper | [**View README**](rtl/README.md) | • [Top Subsystem RTL](rtl/axi_interconnect_uart_top.v)<br/>• [VCS Script](run/run_vcs_uart_interconnect.sh)<br/>• [Signal Layout](run/uart_signals.rc) |
 | **AES Core** *(Experimental)* | `rtl/aes_core-master/` | **Open-Source**<br/>(Secworks, BSD 2-Clause) | **Educational/Experimental:** Interfacing slave IP to AXI CSRs (Not required for main signal/VGA pipeline) | AXI4-Lite Slave (`0x0100_0000`) | [**View README**](rtl/aes_core-master/README.md) | • [Register Spec (TXT)](rtl/aes_core-master/aes_axi_register_spec.txt)<br/>• [Algorithm Spec (PDF)](rtl/aes_core-master/doc/aes.pdf)<br/>• [Verdi Waveform (PNG)](rtl/aes_core-master/output_verdi.png) |
 
 > [!NOTE]
@@ -557,7 +557,7 @@ The root [`Makefile`](Makefile) provides dedicated targets to compile and simula
 | `make watchdog` | [System Watchdog Monitor](rtl/watchdog/README.md) | Counter kick, reload, NMI pre-warn, hard reset trip |
 | `make pipeline` | [End-to-End SoC Pipeline](tb/tb_soc_pipeline.sv) | Full ADC $\rightarrow$ DMA $\rightarrow$ FIR $\rightarrow$ SBUF $\rightarrow$ VGA $\rightarrow$ CPU math |
 | `make uart` | [AXI Interconnect + UART](rtl/axi_uart/README.md) | Crossbar arbitration, baud generator, FIFOs, echo |
-| `make interconnect` | [3x14 AXI Crossbar](rtl/interconnect/README.md) | 3-Master x 14-Slave routing, concurrent burst transfers |
+| `make interconnect` | [5x20 AXI Crossbar](rtl/interconnect/README.md) | 5-Master x 20-Slave routing, concurrent burst transfers |
 | `make test-all` | **Full Regression Suite** | Runs all 8 unit and pipeline testbenches sequentially |
 
 ```bash
@@ -619,7 +619,7 @@ honours_project_soc-main/
 │   └── sync_fifo.sv               # Synchronous FIFO with status and error flags
 ├── rtl/                           # Synthesizable RTL source files
 │   ├── README.md                  # RTL Subsystem & Integration Hub
-│   ├── axi_interconnect_uart_top.v# 3-Master x 10-Slave + UART subsystem wrapper
+│   ├── axi_interconnect_uart_top.v# 5-Master x 20-Slave + UART subsystem wrapper
 │   ├── timer/                     # Acquisition Rate Timer IP Core
 │   │   ├── README.md              # Dedicated Timer architecture manual
 │   │   └── timer.sv               # Pacing down-counter with auto-reload
@@ -649,8 +649,9 @@ honours_project_soc-main/
 │   ├── interconnect/              # AXI4 Crossbar Interconnect IP
 │   │   ├── README.md              # Dedicated Interconnect architecture manual
 │   │   ├── axi_interconnect.v     # Parameterized crossbar matrix
-│   │   ├── axi_interconnect_wrap_3x10.v
-│   │   ├── axi_interconnect_wrap_3x14.v
+│   │   ├── axi_interconnect_wrap_5x20.v  # 5-Master x 20-Slave wrapper (active)
+│   │   ├── axi_interconnect_wrap_3x10.v  # Legacy 3x10 wrapper (superseded)
+│   │   ├── axi_interconnect_wrap_3x14.v  # Legacy 3x14 wrapper (superseded)
 │   │   ├── arbiter.v              # Round-robin multi-master arbiter
 │   │   └── axi_adapter.v          # AXI bus protocol & width adapters
 │   ├── axi_uart/                  # AXI4-Lite UART IP Core
@@ -674,7 +675,7 @@ honours_project_soc-main/
 │   ├── tb_vga_controller.sv       # VGA Display Controller IP unit testbench
 │   ├── tb_watchdog.sv             # Watchdog Monitor IP unit testbench
 │   ├── tb_axi_interconnect_uart_top.sv  # Subsystem integration test
-│   ├── tb_axi_interconnect_wrap_3x14.sv # Crossbar stress testbench
+│   ├── tb_axi_interconnect_wrap_3x14.sv # Legacy crossbar stress testbench (3x14)
 │   └── hex/                       # Pre-compiled RISC-V test and benchmark binaries
 └── run/                           # Simulation directory (compile logs, waveforms)
     ├── filelist_pipeline.f        # End-to-end pipeline filelist

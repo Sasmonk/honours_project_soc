@@ -9,7 +9,7 @@
 //   Verifies end-to-end integration of:
 //     1. VeeR EL2 RISC-V Processor Core (RV32IMC)
 //     2. AXI4 64-bit to 32-bit Width Adapters (LSU, IFU, SB)
-//     3. 3-Master x 10-Slave AXI4 Interconnect
+//     3. 5-Master x 20-Slave AXI4 Interconnect
 //     4. AXI4-Lite UART IP Core (M00)
 //     5. External Memory / Peripheral 1 (M01)
 //     6. External Peripheral 2 (M02 - AES Accelerator)

@@ -1,7 +1,7 @@
 // =============================================================================
 // Testbench : tb_axi_interconnect_uart_top.sv
 // DUT       : axi_interconnect_uart_top
-// Config    : 3 Masters (s00, s01, s02) x 10 Slaves (m00=UART, m01..m09=Ext)
+// Config    : 5 Masters (s00..s04) x 20 Slaves (m00=UART, m01..m19=Ext)
 // Tool      : Synopsys VCS (SystemVerilog)
 // Description:
 //   Comprehensive verification testbench for AXI Interconnect + AXI UART.
