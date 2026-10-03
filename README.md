@@ -117,16 +117,32 @@ Streaming samples move across dedicated hardware interfaces without consuming CP
 
 ```mermaid
 flowchart LR
-    ADC["ADC / SPI Behavioral Model<br/>(Simulation Stimulus)"] -->|Raw SPI Samples| DMA["DMA Controller Engine"]
-    TIMER["System Timer"] -->|sample_tick pulse| DMA
-    DMA -->|Raw Sample Stream| FIR["Hardware FIR Filter"]
-    FIR -->|Filtered Stream| DMA
-    DMA -->|DMA Write Port| SBUF["Dual-Port Sample Buffer"]
-    SBUF -->|VGA Read Port| VGA["VGA Controller Engine"]
-    VGA -->|HSYNC, VSYNC, RGB444| DISP["VGA Monitor / Checker"]
+    ADC["ADC / SPI Behavioral Model<br/>(Simulation Stimulus)"]
+    DMA["DMA Controller Engine"]
+    TIMER["System Timer"]
+    FIR["Hardware FIR Filter"]
+    SBUF["Dual-Port Sample Buffer"]
+    VGA["VGA Controller Engine"]
+    DISP["VGA Monitor / Checker"]
 
-    GPIO["GPIO User Buttons"] -->|Scale / Trig Cmds| PIC["Core PIC / Interrupts"]
-    UART["AXI UART"] -->|Telemetry & Logs| HOST["Host Console / Terminal"]
+    GPIO["GPIO User Buttons"]
+    PIC["Core PIC / Interrupt Controller"]
+    UART["AXI UART"]
+    HOST["Host Console / Terminal"]
+    WDT["Watchdog Timer"]
+    CPU["VeeR EL2 Core"]
+    BUS["AXI Interconnect"]
+
+    ADC -->|Raw SPI Samples| DMA
+    TIMER -->|sample_tick pulse| DMA
+    DMA -->|Raw Sample Stream| FIR
+    FIR -->|Filtered Stream| DMA
+    DMA -->|DMA Write Port| SBUF
+    SBUF -->|VGA Read Port| VGA
+    VGA -->|HSYNC, VSYNC, RGB444| DISP
+
+    GPIO -->|Scale / Trigger Commands| PIC
+    UART -->|Telemetry / Logs| HOST
 
     TIMER -.->|irq_timer| PIC
     DMA -.->|irq_dma_done / irq_dma_err| PIC
@@ -134,11 +150,12 @@ flowchart LR
     GPIO -.->|irq_gpio| PIC
     VGA -.->|irq_vga_frame| PIC
     FIR -.->|irq_fir| PIC
-    WDT["Watchdog Timer"] -.->|nmi_prewarn| PIC
-    PIC ==> CPU["VeeR EL2 Core"]
+    WDT -.->|nmi_prewarn| PIC
 
-    WDT ==>|wdt_reset (Hard Reset)| CPU
-    WDT ==>|wdt_reset| BUS["AXI Interconnect"]
+    PIC -->|Interrupts| CPU
+
+    WDT -->|wdt_reset| CPU
+    WDT -->|wdt_reset| BUS
 ```
 
 ### 2.3 Data-Flow Pipeline
