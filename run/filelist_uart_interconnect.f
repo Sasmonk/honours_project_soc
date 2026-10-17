@@ -9,6 +9,6 @@
 ../rtl/interconnect/priority_encoder.v
 ../rtl/interconnect/arbiter.v
 ../rtl/interconnect/axi_interconnect.v
-../rtl/interconnect/axi_interconnect_wrap_3x10.v
+../rtl/interconnect/axi_interconnect_wrap_5x20.v
 ../rtl/axi_interconnect_uart_top.v
 ../tb/tb_axi_interconnect_uart_top.sv

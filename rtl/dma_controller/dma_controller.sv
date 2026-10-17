@@ -201,6 +201,9 @@ module dma_controller #(
     wire w1c_timeout_req   = write_req && (awaddr_latched[7:0] == 8'h14) && s_axi_wdata[4];
     wire w1c_err_req       = write_req && (awaddr_latched[7:0] == 8'h14) && s_axi_wdata[5];
 
+    wire effective_axi_master_en = (start_req) ? s_axi_wdata[7] : reg_axi_master_en;
+    wire effective_trigger_en    = (start_req) ? s_axi_wdata[5] : reg_trigger_en;
+
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state               <= STATE_IDLE;
@@ -290,12 +293,12 @@ module dma_controller #(
                 sbuf_waddr          <= dma_dst_addr[BUF_ADDR_WIDTH-1:0];
                 timeout_counter     <= 32'd0;
 
-                if (!reg_axi_master_en) begin
+                if (!effective_axi_master_en) begin
                     // Hardware streaming mode (legacy pipeline)
                     state <= STATE_WAIT_SAMP;
                 end else begin
                     // Universal AXI Master mode
-                    if (reg_trigger_en) begin
+                    if (effective_trigger_en) begin
                         state <= STATE_AXI_WAIT_TRIG;
                     end else begin
                         m_axi_araddr  <= dma_src_addr;
@@ -400,7 +403,7 @@ module dma_controller #(
                                 if (reg_trigger_en) begin
                                     state <= STATE_AXI_WAIT_TRIG;
                                 end else begin
-                                    m_axi_araddr  <= reg_src_inc ? (curr_src_addr + 4) : curr_src_addr;
+                                    m_axi_araddr  <= curr_src_addr;
                                     m_axi_arvalid <= 1'b1;
                                     state         <= STATE_AXI_AR;
                                 end

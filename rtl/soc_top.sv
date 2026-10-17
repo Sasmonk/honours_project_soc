@@ -200,7 +200,8 @@ import el2_pkg::*;
     assign core_extintsrc_req[4] = irq_dma_err;
     assign core_extintsrc_req[5] = irq_fir;
     assign core_extintsrc_req[6] = irq_vga_frame;
-    assign core_extintsrc_req[pt.PIC_TOTAL_INT-1:7] = ext_irq;
+    assign core_extintsrc_req[7] = irq_spi;
+    assign core_extintsrc_req[pt.PIC_TOTAL_INT-1:8] = ext_irq[pt.PIC_TOTAL_INT-9:0];
 
     // Core NMI Interrupt (External NMI OR Watchdog pre-warning)
     wire core_nmi_int = nmi_int | wdt_nmi_prewarn;
@@ -973,6 +974,45 @@ import el2_pkg::*;
     wire                    m_rvalid[1:13];
     wire                    m_rready[1:13];
 
+    // DMA AXI4 Master Wires to Interconnect Port S03
+    wire [ID_WIDTH-1:0]     dma_m_axi_awid;
+    wire [ADDR_WIDTH-1:0]   dma_m_axi_awaddr;
+    wire [7:0]              dma_m_axi_awlen;
+    wire [2:0]              dma_m_axi_awsize;
+    wire [1:0]              dma_m_axi_awburst;
+    wire                    dma_m_axi_awlock;
+    wire [3:0]              dma_m_axi_awcache;
+    wire [2:0]              dma_m_axi_awprot;
+    wire [3:0]              dma_m_axi_awqos;
+    wire                    dma_m_axi_awvalid;
+    wire                    dma_m_axi_awready;
+    wire [DATA_WIDTH-1:0]   dma_m_axi_wdata;
+    wire [STRB_WIDTH-1:0]   dma_m_axi_wstrb;
+    wire                    dma_m_axi_wlast;
+    wire                    dma_m_axi_wvalid;
+    wire                    dma_m_axi_wready;
+    wire [ID_WIDTH-1:0]     dma_m_axi_bid;
+    wire [1:0]              dma_m_axi_bresp;
+    wire                    dma_m_axi_bvalid;
+    wire                    dma_m_axi_bready;
+    wire [ID_WIDTH-1:0]     dma_m_axi_arid;
+    wire [ADDR_WIDTH-1:0]   dma_m_axi_araddr;
+    wire [7:0]              dma_m_axi_arlen;
+    wire [2:0]              dma_m_axi_arsize;
+    wire [1:0]              dma_m_axi_arburst;
+    wire                    dma_m_axi_arlock;
+    wire [3:0]              dma_m_axi_arcache;
+    wire [2:0]              dma_m_axi_arprot;
+    wire [3:0]              dma_m_axi_arqos;
+    wire                    dma_m_axi_arvalid;
+    wire                    dma_m_axi_arready;
+    wire [ID_WIDTH-1:0]     dma_m_axi_rid;
+    wire [DATA_WIDTH-1:0]   dma_m_axi_rdata;
+    wire [1:0]              dma_m_axi_rresp;
+    wire                    dma_m_axi_rlast;
+    wire                    dma_m_axi_rvalid;
+    wire                    dma_m_axi_rready;
+
     axi_interconnect_uart_top #(
         .DATA_WIDTH         (DATA_WIDTH),
         .ADDR_WIDTH         (ADDR_WIDTH),
@@ -1059,6 +1099,24 @@ import el2_pkg::*;
         .s02_axi_arburst(s02_axi_arburst), .s02_axi_arlock(s02_axi_arlock), .s02_axi_arcache(s02_axi_arcache), .s02_axi_arprot(s02_axi_arprot),
         .s02_axi_arqos(s02_axi_arqos), .s02_axi_aruser(s02_axi_aruser), .s02_axi_arvalid(s02_axi_arvalid), .s02_axi_arready(s02_axi_arready),
         .s02_axi_rid(s02_axi_rid), .s02_axi_rdata(s02_axi_rdata), .s02_axi_rresp(s02_axi_rresp), .s02_axi_rlast(s02_axi_rlast), .s02_axi_ruser(s02_axi_ruser), .s02_axi_rvalid(s02_axi_rvalid), .s02_axi_rready(s02_axi_rready),
+
+        // Slave 03: DMA AXI Master
+        .s03_axi_awid(dma_m_axi_awid), .s03_axi_awaddr(dma_m_axi_awaddr), .s03_axi_awlen(dma_m_axi_awlen), .s03_axi_awsize(dma_m_axi_awsize),
+        .s03_axi_awburst(dma_m_axi_awburst), .s03_axi_awlock(dma_m_axi_awlock), .s03_axi_awcache(dma_m_axi_awcache), .s03_axi_awprot(dma_m_axi_awprot),
+        .s03_axi_awqos(dma_m_axi_awqos), .s03_axi_awuser({AWUSER_WIDTH{1'b0}}), .s03_axi_awvalid(dma_m_axi_awvalid), .s03_axi_awready(dma_m_axi_awready),
+        .s03_axi_wdata(dma_m_axi_wdata), .s03_axi_wstrb(dma_m_axi_wstrb), .s03_axi_wlast(dma_m_axi_wlast), .s03_axi_wuser({WUSER_WIDTH{1'b0}}), .s03_axi_wvalid(dma_m_axi_wvalid), .s03_axi_wready(dma_m_axi_wready),
+        .s03_axi_bid(dma_m_axi_bid), .s03_axi_bresp(dma_m_axi_bresp), .s03_axi_buser(), .s03_axi_bvalid(dma_m_axi_bvalid), .s03_axi_bready(dma_m_axi_bready),
+        .s03_axi_arid(dma_m_axi_arid), .s03_axi_araddr(dma_m_axi_araddr), .s03_axi_arlen(dma_m_axi_arlen), .s03_axi_arsize(dma_m_axi_arsize),
+        .s03_axi_arburst(dma_m_axi_arburst), .s03_axi_arlock(dma_m_axi_arlock), .s03_axi_arcache(dma_m_axi_arcache), .s03_axi_arprot(dma_m_axi_arprot),
+        .s03_axi_arqos(dma_m_axi_arqos), .s03_axi_aruser({ARUSER_WIDTH{1'b0}}), .s03_axi_arvalid(dma_m_axi_arvalid), .s03_axi_arready(dma_m_axi_arready),
+        .s03_axi_rid(dma_m_axi_rid), .s03_axi_rdata(dma_m_axi_rdata), .s03_axi_rresp(dma_m_axi_rresp), .s03_axi_rlast(dma_m_axi_rlast), .s03_axi_ruser(), .s03_axi_rvalid(dma_m_axi_rvalid), .s03_axi_rready(dma_m_axi_rready),
+
+        // Slave 04: Tied-off
+        .s04_axi_awid({ID_WIDTH{1'b0}}), .s04_axi_awaddr({ADDR_WIDTH{1'b0}}), .s04_axi_awlen(8'd0), .s04_axi_awsize(3'd0), .s04_axi_awburst(2'd0), .s04_axi_awlock(1'b0), .s04_axi_awcache(4'd0), .s04_axi_awprot(3'd0), .s04_axi_awqos(4'd0), .s04_axi_awuser({AWUSER_WIDTH{1'b0}}), .s04_axi_awvalid(1'b0), .s04_axi_awready(),
+        .s04_axi_wdata({DATA_WIDTH{1'b0}}), .s04_axi_wstrb({STRB_WIDTH{1'b0}}), .s04_axi_wlast(1'b0), .s04_axi_wuser({WUSER_WIDTH{1'b0}}), .s04_axi_wvalid(1'b0), .s04_axi_wready(),
+        .s04_axi_bid(), .s04_axi_bresp(), .s04_axi_buser(), .s04_axi_bvalid(), .s04_axi_bready(1'b0),
+        .s04_axi_arid({ID_WIDTH{1'b0}}), .s04_axi_araddr({ADDR_WIDTH{1'b0}}), .s04_axi_arlen(8'd0), .s04_axi_arsize(3'd0), .s04_axi_arburst(2'd0), .s04_axi_arlock(1'b0), .s04_axi_arcache(4'd0), .s04_axi_arprot(3'd0), .s04_axi_arqos(4'd0), .s04_axi_aruser({ARUSER_WIDTH{1'b0}}), .s04_axi_arvalid(1'b0), .s04_axi_arready(),
+        .s04_axi_rid(), .s04_axi_rdata(), .s04_axi_rresp(), .s04_axi_rlast(), .s04_axi_ruser(), .s04_axi_rvalid(), .s04_axi_rready(1'b0),
 
         // Masters M01..M13
         .m01_axi_awid(m_awid[1]), .m01_axi_awaddr(m_awaddr[1]), .m01_axi_awlen(m_awlen[1]), .m01_axi_awsize(m_awsize[1]), .m01_axi_awburst(m_awburst[1]), .m01_axi_awlock(m_awlock[1]), .m01_axi_awcache(m_awcache[1]), .m01_axi_awprot(m_awprot[1]), .m01_axi_awqos(m_awqos[1]), .m01_axi_awregion(), .m01_axi_awuser(m_awuser[1]), .m01_axi_awvalid(m_awvalid[1]), .m01_axi_awready(m_awready[1]),
@@ -1456,25 +1514,6 @@ import el2_pkg::*;
         .m_axil_rdata(dma_axil_rdata), .m_axil_rresp(dma_axil_rresp), .m_axil_rvalid(dma_axil_rvalid), .m_axil_rready(dma_axil_rready)
     );
 
-    // -------------------------------------------------------------------------
-    // ARCHITECTURAL REFACTORING NOTE (Decoupled Modular Streaming Architecture):
-    // -------------------------------------------------------------------------
-    // u_dma has been upgraded to include an independent AXI4 Master Interface
-    // (m_axi_aw*, m_axi_w*, m_axi_b*, m_axi_ar*, m_axi_r*).
-    //
-    // PENDING / INCOMPLETE INTEGRATION STEP:
-    // To complete full bus-centric DMA decoupling across the entire SoC:
-    // 1. Wire the AXI4 Master port of u_dma to crossbar slave port s03
-    //    (u_interconnect_uart.s03_axi_*).
-    // 2. This enables firmware to program DMA_SRC_ADDR and DMA_DST_ADDR to
-    //    arbitrarily move data between:
-    //      - SPI RX FIFO (0x4000_C00C) -> On-Chip DMEM (0x1002_0000)
-    //      - On-Chip DMEM (0x1002_0000) -> FIR Input (0x4001_2050)
-    //      - FIR Output (0x4001_2054) -> Ping-Pong Sample Buffer (0x4001_6000)
-    //      - Or direct SPI FIFO -> Sample Buffer streaming.
-    // 3. Keep all VeeR EL2 core unused inputs (dma_axi_*, soft_int, DCCM/ICCM
-    //    export douts) strictly tied to 0 to prevent simulation X-poisoning.
-    // -------------------------------------------------------------------------
     dma_controller u_dma (
         .clk(clk), .rst_n(rst_n),
         .sample_tick(sample_tick),
@@ -1485,6 +1524,45 @@ import el2_pkg::*;
         .fir_sample_out(fir_sample_out), .fir_sample_valid_out(fir_sample_valid_out),
         .sbuf_waddr(sbuf_waddr), .sbuf_wdata(sbuf_wdata), .sbuf_we(sbuf_we),
         .buf_swap_req(buf_swap_req),
+        // AXI4 Master Interface connected to Crossbar S03
+        .m_axi_awid(dma_m_axi_awid),
+        .m_axi_awaddr(dma_m_axi_awaddr),
+        .m_axi_awlen(dma_m_axi_awlen),
+        .m_axi_awsize(dma_m_axi_awsize),
+        .m_axi_awburst(dma_m_axi_awburst),
+        .m_axi_awlock(dma_m_axi_awlock),
+        .m_axi_awcache(dma_m_axi_awcache),
+        .m_axi_awprot(dma_m_axi_awprot),
+        .m_axi_awqos(dma_m_axi_awqos),
+        .m_axi_awvalid(dma_m_axi_awvalid),
+        .m_axi_awready(dma_m_axi_awready),
+        .m_axi_wdata(dma_m_axi_wdata),
+        .m_axi_wstrb(dma_m_axi_wstrb),
+        .m_axi_wlast(dma_m_axi_wlast),
+        .m_axi_wvalid(dma_m_axi_wvalid),
+        .m_axi_wready(dma_m_axi_wready),
+        .m_axi_bid(dma_m_axi_bid),
+        .m_axi_bresp(dma_m_axi_bresp),
+        .m_axi_bvalid(dma_m_axi_bvalid),
+        .m_axi_bready(dma_m_axi_bready),
+        .m_axi_arid(dma_m_axi_arid),
+        .m_axi_araddr(dma_m_axi_araddr),
+        .m_axi_arlen(dma_m_axi_arlen),
+        .m_axi_arsize(dma_m_axi_arsize),
+        .m_axi_arburst(dma_m_axi_arburst),
+        .m_axi_arlock(dma_m_axi_arlock),
+        .m_axi_arcache(dma_m_axi_arcache),
+        .m_axi_arprot(dma_m_axi_arprot),
+        .m_axi_arqos(dma_m_axi_arqos),
+        .m_axi_arvalid(dma_m_axi_arvalid),
+        .m_axi_arready(dma_m_axi_arready),
+        .m_axi_rid(dma_m_axi_rid),
+        .m_axi_rdata(dma_m_axi_rdata),
+        .m_axi_rresp(dma_m_axi_rresp),
+        .m_axi_rlast(dma_m_axi_rlast),
+        .m_axi_rvalid(dma_m_axi_rvalid),
+        .m_axi_rready(dma_m_axi_rready),
+        // AXI4-Lite Slave CSR Interface
         .s_axi_awaddr(dma_axil_awaddr), .s_axi_awvalid(dma_axil_awvalid), .s_axi_awready(dma_axil_awready),
         .s_axi_wdata(dma_axil_wdata), .s_axi_wstrb(dma_axil_wstrb), .s_axi_wvalid(dma_axil_wvalid), .s_axi_wready(dma_axil_wready),
         .s_axi_bresp(dma_axil_bresp), .s_axi_bvalid(dma_axil_bvalid), .s_axi_bready(dma_axil_bready),

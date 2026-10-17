@@ -268,6 +268,14 @@ module tb_soc_pipeline;
     always #(CLK_SYS_PERIOD/2) clk_sys = ~clk_sys; // 100 MHz
     always #(CLK_VGA_PERIOD/2) clk_vga = ~clk_vga; // 25 MHz
 
+    // Verdi Waveform Dumping (FSDB)
+    initial begin
+        $fsdbDumpfile("dump.fsdb");
+        $fsdbDumpvars(0, tb_soc_pipeline, "+all");
+        $fsdbDumpSVA;
+        $fsdbDumpMDA;
+    end
+
     // -------------------------------------------------------------------------
     // Top-Level Test Sequence
     // -------------------------------------------------------------------------

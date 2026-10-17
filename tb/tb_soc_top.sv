@@ -188,6 +188,16 @@ module tb_soc_top;
     );
 
     // -------------------------------------------------------------------------
+    // Verdi Waveform Dumping (FSDB)
+    // -------------------------------------------------------------------------
+    initial begin
+        $fsdbDumpfile("dump.fsdb");
+        $fsdbDumpvars(0, tb_soc_top, "+all");
+        $fsdbDumpSVA;
+        $fsdbDumpMDA;
+    end
+
+    // -------------------------------------------------------------------------
     // Clocks Generation
     // -------------------------------------------------------------------------
     initial begin
@@ -338,10 +348,29 @@ module tb_soc_top;
         write_imem_word(21, 32'h00942023); // sw x9, 0(x8)  -> DMEM[0] = 123
         write_imem_word(22, 32'h00042583); // lw x11, 0(x8) -> read DMEM[0] into x11
 
-        // 6. Infinite Loop
-        write_imem_word(23, 32'h0000006f); // jal x0, 0
+        // 6. Configure System Timer (0x4000_8000): Reload = 200, EN = 1
+        write_imem_word(23, 32'h40008637); // lui x12, 0x40008
+        write_imem_word(24, 32'h0c800693); // addi x13, x0, 200
+        write_imem_word(25, 32'h00d62223); // sw x13, 4(x12) -> TIMER_RELOAD (0x04) = 200 cycles
+        write_imem_word(26, 32'h00100693); // addi x13, x0, 1
+        write_imem_word(27, 32'h00d62023); // sw x13, 0(x12) -> TIMER_CTRL (0x00) = 1 (Timer EN)
 
-        $display("[INIT] Preloaded %0d RISC-V test instructions into On-Chip IMEM (0x1000_0000)", 24);
+        // 7. Configure SPI Controller (0x4000_C000): Prescaler=2, Auto-Trigger=1, EN=1
+        write_imem_word(28, 32'h4000c737); // lui x14, 0x4000c
+        write_imem_word(29, 32'h02300793); // addi x15, x0, 35 (0x23: Prescaler=2, Auto-Trigger=1, EN=1)
+        write_imem_word(30, 32'h00f72023); // sw x15, 0(x14) -> SPI_CTRL (0x00) = 0x23
+
+        // 8. Configure DMA Controller (0x4001_0000): LEN = 16, Start = 1 (Legacy streaming)
+        write_imem_word(31, 32'h40010837); // lui x16, 0x40010
+        write_imem_word(32, 32'h01000893); // addi x17, x0, 16 -> 16 samples
+        write_imem_word(33, 32'h01182623); // sw x17, 12(x16) -> DMA_LEN (0x0C) = 16
+        write_imem_word(34, 32'h00100893); // addi x17, x0, 1  -> START = 1
+        write_imem_word(35, 32'h01182023); // sw x17, 0(x16) -> DMA_CTRL (0x00) = 1
+
+        // 9. Infinite Loop
+        write_imem_word(36, 32'h0000006f); // jal x0, 0
+
+        $display("[INIT] Preloaded %0d RISC-V test instructions into On-Chip IMEM (0x1000_0000)", 37);
     endtask
 
     // -------------------------------------------------------------------------
@@ -395,7 +424,7 @@ module tb_soc_top;
             end
             begin : cpu_execution
                 int timeout_cycles = 500_000;
-                while (retired_instructions < 20 && timeout_cycles > 0) begin
+                while (retired_instructions < 37 && timeout_cycles > 0) begin
                     @(posedge clk);
                     timeout_cycles--;
                 end
@@ -403,7 +432,7 @@ module tb_soc_top;
         join
 
         check("Test 2.1: VeeR EL2 fetched & retired instructions from on-chip IMEM",
-              (retired_instructions >= 5),
+              (retired_instructions >= 30),
               $sformatf("Only %0d instructions retired", retired_instructions));
 
         $display("   Captured UART TX output: 0x%02h ('%c')", captured_uart_byte, captured_uart_byte);
@@ -464,20 +493,101 @@ module tb_soc_top;
         end
 
         // ---------------------------------------------------------------------
-        // TEST 8: ADC SPI Acquisition, DMA Streaming & Ping-Pong Buffering
+        // TEST 8: Live ADC SPI Acquisition, DMA Streaming & Ping-Pong Buffering
         // ---------------------------------------------------------------------
-        $display("\n--- [TEST 8] ADC SPI Acquisition & Ping-Pong Sample Buffer ---");
-        // Check that VGA video timing is actively generating sync signals
+        $display("\n--- [TEST 8] Live ADC SPI Acquisition & Ping-Pong Sample Buffer ---");
+        $display("   Waiting for Timer to trigger SPI Controller and DMA to acquire 16 samples...");
+
+        begin : wait_for_dma_stream
+            int dma_timeout = 100_000;
+            while (!dut.u_dma.irq_dma_done && dma_timeout > 0) begin
+                @(posedge clk);
+                dma_timeout--;
+            end
+            check("Test 8.1: SPI Controller auto-triggered by Timer and completed ADC acquisitions",
+                  (dut.u_spi.sample_ready || dut.u_dma.samples_transferred > 0),
+                  "SPI controller failed to trigger and receive samples");
+            check("Test 8.2: DMA acquired 16 samples through FIR filter into Sample Buffer",
+                  (dut.u_dma.samples_transferred == 16'd16),
+                  $sformatf("Expected 16 samples, got %0d", dut.u_dma.samples_transferred));
+            check("Test 8.3: DMA asserted irq_dma_done on transfer completion",
+                  (dut.irq_dma_done == 1'b1),
+                  "irq_dma_done failed to assert");
+            check("Test 8.4: PIC external interrupt vector core_extintsrc_req[3] asserted for DMA",
+                  (dut.core_extintsrc_req[3] == 1'b1),
+                  "core_extintsrc_req[3] not high");
+            for (int i = 0; i < 16; i++) begin
+                $display("   [DEBUG SBUF] mem[%0d] = 0x%04h (%0d)", i, dut.u_sbuf.mem[i], $signed(dut.u_sbuf.mem[i]));
+            end
+            check("Test 8.5: Dual-port sample buffer received non-zero filtered ADC samples",
+                  (dut.u_sbuf.mem[0] !== 16'h0000 || dut.u_sbuf.mem[1] !== 16'h0000 || dut.u_sbuf.mem[2] !== 16'h0000 || dut.u_sbuf.mem[3] !== 16'h0000 || dut.u_sbuf.mem[4] !== 16'h0000),
+                  "Sample buffer memory remains unwritten");
+            check("Test 8.6: Ping-pong buffer swap requested (buf_swap_req active)",
+                  (dut.buf_swap_req == 1'b1 || dut.u_sbuf.swap_count > 0),
+                  "buf_swap_req not generated");
+        end
+
+        // Check VGA video timing and Watchdog
         #(CLK_VGA_PERIOD_NS * 500);
-        check("Test 8.1: VGA timing generator running (vga_hsync active)",
+        check("Test 8.7: VGA timing generator running (vga_hsync active)",
               (vga_hsync !== 1'bx),
               "vga_hsync is undefined");
-        check("Test 8.2: VGA vertical sync active (vga_vsync active)",
+        check("Test 8.8: VGA vertical sync active (vga_vsync active)",
               (vga_vsync !== 1'bx),
               "vga_vsync is undefined");
-        check("Test 8.3: Watchdog safety monitor active and healthy",
+        check("Test 8.9: Watchdog safety monitor active and healthy",
               (wdt_reset_out == 1'b0),
               "Watchdog reset triggered unexpectedly");
+
+        // ---------------------------------------------------------------------
+        // TEST 8.10: Universal AXI4 Master DMA via Crossbar Port S03
+        // ---------------------------------------------------------------------
+        $display("\n--- [TEST 8.10] Universal AXI4 Master DMA via Crossbar Port S03 ---");
+        // Test autonomous DMA bus mastering across crossbar S03 -> M02 (DMEM):
+        // Source: DMEM[0] (0x1002_0000) containing 123
+        // Destination: DMEM[8] (0x1002_0020)
+        // LEN: 2 words
+        @(posedge clk);
+        dut.u_dma.dma_done          <= 1'b0;
+        dut.u_dma.dma_busy          <= 1'b1;
+        dut.u_dma.dma_src_addr      <= 32'h1002_0000;
+        dut.u_dma.dma_dst_addr      <= 32'h1002_0020;
+        dut.u_dma.dma_len           <= 16'd2;
+        dut.u_dma.reg_src_inc       <= 1'b1;
+        dut.u_dma.reg_dst_inc       <= 1'b1;
+        dut.u_dma.reg_trigger_en    <= 1'b0;
+        dut.u_dma.reg_auto_reload   <= 1'b0;
+        dut.u_dma.reg_axi_master_en <= 1'b1;
+        dut.u_dma.samples_transferred <= 16'd0;
+        dut.u_dma.timeout_counter   <= 32'd0;
+        dut.u_dma.curr_src_addr     <= 32'h1002_0000;
+        dut.u_dma.curr_dst_addr     <= 32'h1002_0020;
+        dut.u_dma.m_axi_araddr      <= 32'h1002_0000;
+        dut.u_dma.m_axi_arvalid     <= 1'b1;
+        dut.u_dma.state             <= 4'd6; // STATE_AXI_AR
+
+        @(posedge clk); // Allow assignments to settle so dma_done is 0 when entering wait loop
+
+        begin : wait_for_axi_dma
+            int axi_timeout = 10_000;
+            while (!dut.u_dma.dma_done && axi_timeout > 0) begin
+                @(posedge clk);
+                axi_timeout--;
+            end
+            $display("   [DEBUG AXI DMA] DMEM[0]=0x%08h (%0d), DMEM[8]=0x%08h (%0d)",
+                     {dut.u_dmem.mem_3[0], dut.u_dmem.mem_2[0], dut.u_dmem.mem_1[0], dut.u_dmem.mem_0[0]},
+                     {dut.u_dmem.mem_3[0], dut.u_dmem.mem_2[0], dut.u_dmem.mem_1[0], dut.u_dmem.mem_0[0]},
+                     {dut.u_dmem.mem_3[8], dut.u_dmem.mem_2[8], dut.u_dmem.mem_1[8], dut.u_dmem.mem_0[8]},
+                     {dut.u_dmem.mem_3[8], dut.u_dmem.mem_2[8], dut.u_dmem.mem_1[8], dut.u_dmem.mem_0[8]});
+            $display("   [DEBUG AXI DMA] curr_src_addr=0x%08h curr_dst_addr=0x%08h data_buffer=0x%08h dma_err=%b",
+                     dut.u_dma.curr_src_addr, dut.u_dma.curr_dst_addr, dut.u_dma.data_buffer, dut.u_dma.dma_err);
+            check("Test 8.10: DMA AXI4 Master autonomous bus transfer via S03 to DMEM completed",
+                  (dut.u_dma.dma_done == 1'b1),
+                  "DMA AXI Master timed out");
+            check("Test 8.11: Destination DMEM[8] matches source data transferred by DMA via Crossbar",
+                  ({dut.u_dmem.mem_3[8], dut.u_dmem.mem_2[8], dut.u_dmem.mem_1[8], dut.u_dmem.mem_0[8]} == 32'd123),
+                  "Data in destination DMEM[8] does not match source word");
+        end
 
         // ---------------------------------------------------------------------
         // TEST 9: External PIC Interrupt Routing

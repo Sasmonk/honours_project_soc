@@ -31,7 +31,7 @@ RUN_DIR  := $(ROOT_DIR)/run
 #   watchdog      - Watchdog Safety Monitor (tb_watchdog.sv)
 #   pipeline      - End-to-End SoC Pipeline (tb_soc_pipeline.sv)
 # ------------------------------------------------------------------------------
-TEST ?= pipeline
+TEST ?= soc
 
 ifeq ($(TEST), uart)
     FILELIST    := filelist_uart_interconnect.f
@@ -81,6 +81,12 @@ else ifeq ($(TEST), vga)
     SIM_LOG     := sim_vga.log
     WAVE_FILE   := dump.fsdb
     RC_FILE     := 
+else ifeq ($(TEST), vga_live)
+    FILELIST    := filelist_vga_live.f
+    COMPILE_LOG := compile_vga_live.log
+    SIM_LOG     := sim_vga_live.log
+    WAVE_FILE   := dump.fsdb
+    RC_FILE     := 
 else ifeq ($(TEST), watchdog)
     FILELIST    := filelist_watchdog.f
     COMPILE_LOG := compile_watchdog.log
@@ -99,17 +105,32 @@ else ifeq ($(TEST), soc)
     SIM_LOG     := sim_soc.log
     WAVE_FILE   := dump.fsdb
     RC_FILE     := 
+else ifeq ($(TEST), hello)
+    FILELIST    := filelist_soc_c_hello.f
+    COMPILE_LOG := compile_c_hello.log
+    SIM_LOG     := sim_c_hello.log
+    WAVE_FILE   := dump.fsdb
+    RC_FILE     := 
 else
-    $(error Unknown TEST '$(TEST)'. Valid options are: uart, interconnect, timer, gpio, fir, sample_buffer, dma, vga, watchdog, pipeline, soc)
+    $(error Unknown TEST '$(TEST)'. Valid options are: uart, interconnect, timer, gpio, fir, sample_buffer, dma, vga, vga_live, watchdog, pipeline, soc, hello)
+endif
+
+# Extra flags for tests with C++/DPI or external libraries
+ifeq ($(TEST), vga_live)
+    VCS_EXTRA_FLAGS := -CFLAGS "-std=c++11 -DENABLE_VGA_OPENGL -I$(ROOT_DIR)/tb/vga_simulator -I$(ROOT_DIR)/tb/vga_simulator/freeglut/include" \
+                       -LDFLAGS "-Wl,--whole-archive $(ROOT_DIR)/tb/vga_simulator/freeglut/lib64/libglut.a -Wl,--no-whole-archive -lGLU -lGL -lX11 -lXrandr -lXxf86vm -lXi -lpthread"
 endif
 
 # VCS Compilation and Simulation Flags
 VCS_FLAGS := -full64 -sverilog -timescale=1ns/1ps -debug_access+all -kdb -v2k_generate
 SIM_FLAGS := -no_save
+VERDI_BIN ?= $(VERDI_HOME)/bin/verdi
 
 .PHONY: all help compile sim run verdi wave clean \
-        uart interconnect timer gpio fir sample_buffer dma vga watchdog pipeline test-all \
-        soc soc-compile soc-sim soc-verdi
+        uart interconnect timer gpio fir sample_buffer dma vga vga-live vga-live-gui vga-live-verdi watchdog pipeline test-all \
+        soc soc-compile soc-sim soc-verdi hello hello-verdi \
+        uart-verdi interconnect-verdi timer-verdi gpio-verdi fir-verdi \
+        sample_buffer-verdi dma-verdi vga-verdi watchdog-verdi pipeline-verdi
 
 # Default target: display help menu
 all: help
@@ -121,7 +142,7 @@ compile:
 	@echo "=========================================================="
 	@echo " Compiling [$(TEST)] with Synopsys VCS..."
 	@echo "=========================================================="
-	cd $(RUN_DIR) && vcs $(VCS_FLAGS) -f $(FILELIST) -l $(COMPILE_LOG)
+	cd $(RUN_DIR) && vcs $(VCS_FLAGS) $(VCS_EXTRA_FLAGS) -f $(FILELIST) -l $(COMPILE_LOG)
 
 sim:
 	@echo "=========================================================="
@@ -133,9 +154,9 @@ run: compile sim
 
 verdi wave:
 	@echo "=========================================================="
-	@echo " Launching Verdi for [$(TEST)]..."
+	@echo " Launching Verdi GUI for [$(TEST)]..."
 	@echo "=========================================================="
-	cd $(RUN_DIR) && verdi -dbdir simv.daidir -ssf $(WAVE_FILE) $(if $(RC_FILE),-sswr $(RC_FILE),) &
+	cd $(RUN_DIR) && $(VERDI_BIN) -dbdir simv.daidir -ssf $(WAVE_FILE) $(if $(RC_FILE),-sswr $(RC_FILE),) &
 
 # ------------------------------------------------------------------------------
 # Shortcut Targets for Individual IP Tests
@@ -157,6 +178,12 @@ dma:
 
 vga:
 	$(MAKE) run TEST=vga
+
+vga-live:
+	$(MAKE) run TEST=vga_live
+
+vga-live-gui:
+	VGA_GUI=1 $(MAKE) run TEST=vga_live
 
 watchdog:
 	$(MAKE) run TEST=watchdog
@@ -185,6 +212,48 @@ soc-sim:
 soc-verdi:
 	$(MAKE) verdi TEST=soc
 
+# Shortcut Targets for RISC-V C Firmware Hello World
+hello:
+	$(MAKE) -C sw all
+	$(MAKE) run TEST=hello
+
+hello-verdi:
+	$(MAKE) verdi TEST=hello
+
+# Shortcut Targets to launch Verdi GUI for individual IP tests
+uart-verdi:
+	$(MAKE) verdi TEST=uart
+
+interconnect-verdi:
+	$(MAKE) verdi TEST=interconnect
+
+pipeline-verdi:
+	$(MAKE) verdi TEST=pipeline
+
+timer-verdi:
+	$(MAKE) verdi TEST=timer
+
+gpio-verdi:
+	$(MAKE) verdi TEST=gpio
+
+fir-verdi:
+	$(MAKE) verdi TEST=fir
+
+sample_buffer-verdi:
+	$(MAKE) verdi TEST=sample_buffer
+
+dma-verdi:
+	$(MAKE) verdi TEST=dma
+
+vga-verdi:
+	$(MAKE) verdi TEST=vga
+
+vga-live-verdi:
+	$(MAKE) verdi TEST=vga_live
+
+watchdog-verdi:
+	$(MAKE) verdi TEST=watchdog
+
 # ------------------------------------------------------------------------------
 # Run All Unit & Pipeline Tests
 # ------------------------------------------------------------------------------
@@ -211,6 +280,7 @@ clean:
 	@echo "Cleaning simulation files in $(RUN_DIR) and $(ROOT_DIR)..."
 	rm -rf $(RUN_DIR)/simv $(RUN_DIR)/simv.daidir $(RUN_DIR)/csrc
 	rm -rf $(RUN_DIR)/*.log $(RUN_DIR)/*.fsdb $(RUN_DIR)/novas* $(RUN_DIR)/verdiLog $(RUN_DIR)/ucli.key
+	rm -rf $(RUN_DIR)/*.bmp $(RUN_DIR)/*.ppm $(ROOT_DIR)/*.bmp $(ROOT_DIR)/*.ppm
 	rm -rf $(ROOT_DIR)/*.log $(ROOT_DIR)/simv $(ROOT_DIR)/simv.daidir $(ROOT_DIR)/csrc $(ROOT_DIR)/verdiLog $(ROOT_DIR)/fsdbreportLog $(ROOT_DIR)/ucli.key
 	@echo "Clean completed."
 
@@ -230,12 +300,25 @@ help:
 	@echo "   make fir           - Compile & Run FIR Filter test"
 	@echo "   make sample_buffer - Compile & Run Dual-Port Sample Buffer test"
 	@echo "   make dma           - Compile & Run Autonomous DMA Controller test"
-	@echo "   make vga           - Compile & Run VGA Controller test"
+	@echo "   make vga           - Compile & Run VGA Controller timing test"
+	@echo "   make vga-live      - Compile & Run Live VGA Simulator (saves frame BMP/PPM)"
+	@echo "   make vga-live-gui  - Run Live VGA Simulator with interactive OpenGL window"
 	@echo "   make watchdog      - Compile & Run Watchdog Monitor test"
 	@echo "   make uart          - Compile & Run AXI UART test"
 	@echo "   make interconnect  - Compile & Run AXI Interconnect test"
 	@echo "   make pipeline      - Compile & Run End-to-End SoC Pipeline test"
+	@echo "   make soc           - Compile & Run Complete Top-Level SoC test"
+	@echo "   make hello         - Compile C firmware & Run UART Hello World test"
 	@echo "   make test-all      - Run all testbenches sequentially"
+	@echo ""
+	@echo " Verdi Waveform Viewing:"
+	@echo "   make verdi         - Open Verdi GUI for current TEST (default: soc)"
+	@echo "   make wave          - Alias for 'make verdi'"
+	@echo "   make soc-verdi     - Open Verdi GUI for Top-Level SoC waveform"
+	@echo "   make hello-verdi   - Open Verdi GUI for C Hello World test waveform"
+	@echo "   make vga-live-verdi- Open Verdi GUI for Live VGA simulation waveform"
+	@echo "   make <ip>-verdi    - Open Verdi GUI for specific IP (e.g. uart-verdi, dma-verdi)"
+	@echo "   make verdi TEST=<name> - Open Verdi GUI for specified test"
 	@echo ""
 	@echo " Other Commands:"
 	@echo "   make clean         - Remove simulation outputs, logs, waveforms"

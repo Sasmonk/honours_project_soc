@@ -32,3 +32,9 @@ vc_hdrs.h
 **/*_session.vim
 .~lock.*
 *.lock
+*Log/
+report.txt
+*.bmp
+*.ppm
+*.o
+*.elf
