@@ -21,14 +21,31 @@
   `ifndef _AXI_UART_H_
   `define _AXI_UART_H_
 
-  // The receiver data register | UART_DATA_RX
+  // The receiver data register | UART_DATA_RX (DLAB=0, Read)
   `define _UART_RBR_          3'd0
-  // The transmitter register | UART_DATA_TX
+  // The transmitter register | UART_DATA_TX (DLAB=0, Write)
   `define _UART_THR_          3'd0
-  // The interrupt enable register | UART_IRQ_EN
+  // Divisor Latch LSB (DLAB=1, Read/Write)
+  `define _UART_DLL_          3'd0
+
+  // The interrupt enable register | UART_IRQ_EN (DLAB=0, Read/Write)
   `define _UART_IER_          3'd1
-  //  Custom baud divisor register
+  // Divisor Latch MSB (DLAB=1, Read/Write)
+  `define _UART_DLM_          3'd1
+
+  // Interrupt Identification Register (DLAB=0, Read)
+  `define _UART_IIR_          3'd2
+  // FIFO Control Register (DLAB=0, Write)
+  `define _UART_FCR_          3'd2
+  // Legacy Custom baud divisor register (DLAB=1, Read/Write)
   `define _UART_BAUD_DIVISOR_ 3'd2
+
+  // Modem Control Register (Read/Write)
+  `define _UART_MCR_          3'd4
+  // Modem Status Register (Read)
+  `define _UART_MSR_          3'd6
+  // Scratch Register (Read/Write)
+  `define _UART_SCR_          3'd7
 
   /* LCR config bits */
   /* || 31 | 30.......5    |         4       |        3      |        2       |   1     |    0   || */

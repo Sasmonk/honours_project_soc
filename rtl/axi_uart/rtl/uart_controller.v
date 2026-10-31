@@ -46,7 +46,8 @@ module uart_controller
     input   wire                  tx_load_i,                  // available data to load from transmit FIFO
     //input   wire                  tx_full_i,                  // transmit FIFO is full
     input   wire [DATA_UART-1:0]  tx_data_i,                  // the data packet to transmit
-    output  wire                  tx_pull_o                   // pull fro the transmit FIFO
+    output  wire                  tx_pull_o,                  // pull fro the transmit FIFO
+    output  wire                  tx_busy_o                   // transmitter is busy
 );
 
   /* regs and wires */
@@ -59,12 +60,13 @@ module uart_controller
   wire                  tx_ready_int;
   wire                  tx_busy;
 
-
   /* tx controller */
   localparam  ResetState  = 3'b000;
   localparam  IdleState   = 3'b011;
   localparam  SendState   = 3'b101;
   reg [2:0] state, state_d;
+
+  assign tx_busy_o = tx_busy || (state != IdleState);
 
   /*
     Always description:

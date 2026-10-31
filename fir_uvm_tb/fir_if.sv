@@ -1,0 +1,91 @@
+// =============================================================================
+// Interface   : fir_if.sv
+// Description : Standard UVM SystemVerilog Interface for FIR
+// =============================================================================
+`timescale 1ns / 1ps
+
+interface fir_if (input logic clk, input logic rst_n);
+
+  // Physical Bus Signals
+  logic [15:0] fir_sample_in;
+  logic        fir_sample_valid_in;
+  logic [15:0] fir_sample_out;
+  logic        fir_sample_valid_out;
+  logic        irq_fir;
+  logic [31:0] s_axi_awaddr;
+  logic        s_axi_awvalid;
+  logic        s_axi_awready;
+  logic [31:0] s_axi_wdata;
+  logic [3:0] s_axi_wstrb;
+  logic        s_axi_wvalid;
+  logic        s_axi_wready;
+  logic [1:0] s_axi_bresp;
+  logic        s_axi_bvalid;
+  logic        s_axi_bready;
+  logic [31:0] s_axi_araddr;
+  logic        s_axi_arvalid;
+  logic        s_axi_arready;
+  logic [31:0] s_axi_rdata;
+  logic [1:0] s_axi_rresp;
+  logic        s_axi_rvalid;
+  logic        s_axi_rready;
+
+  // Master Clocking Block (Driver perspective)
+  clocking master_cb @(posedge clk);
+    default input #1step output #1;
+    output fir_sample_in;
+    output fir_sample_valid_in;
+    input  fir_sample_out;
+    input  fir_sample_valid_out;
+    input  irq_fir;
+    output s_axi_awaddr;
+    output s_axi_awvalid;
+    input  s_axi_awready;
+    output s_axi_wdata;
+    output s_axi_wstrb;
+    output s_axi_wvalid;
+    input  s_axi_wready;
+    input  s_axi_bresp;
+    input  s_axi_bvalid;
+    output s_axi_bready;
+    output s_axi_araddr;
+    output s_axi_arvalid;
+    input  s_axi_arready;
+    input  s_axi_rdata;
+    input  s_axi_rresp;
+    input  s_axi_rvalid;
+    output s_axi_rready;
+  endclocking
+
+  // Monitor Clocking Block (Passive sampling)
+  clocking monitor_cb @(posedge clk);
+    default input #1step output #1;
+    input  fir_sample_in;
+    input  fir_sample_valid_in;
+    input  fir_sample_out;
+    input  fir_sample_valid_out;
+    input  irq_fir;
+    input  s_axi_awaddr;
+    input  s_axi_awvalid;
+    input  s_axi_awready;
+    input  s_axi_wdata;
+    input  s_axi_wstrb;
+    input  s_axi_wvalid;
+    input  s_axi_wready;
+    input  s_axi_bresp;
+    input  s_axi_bvalid;
+    input  s_axi_bready;
+    input  s_axi_araddr;
+    input  s_axi_arvalid;
+    input  s_axi_arready;
+    input  s_axi_rdata;
+    input  s_axi_rresp;
+    input  s_axi_rvalid;
+    input  s_axi_rready;
+  endclocking
+
+  // Modports
+  modport master_mp (clocking master_cb, input clk, input rst_n);
+  modport monitor_mp (clocking monitor_cb, input clk, input rst_n);
+
+endinterface : fir_if

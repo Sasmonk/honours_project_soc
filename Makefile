@@ -110,7 +110,7 @@ else ifeq ($(TEST), hello)
     COMPILE_LOG := compile_c_hello.log
     SIM_LOG     := sim_c_hello.log
     WAVE_FILE   := dump.fsdb
-    RC_FILE     := 
+    RC_FILE     := c_hello_signals.rc 
 else
     $(error Unknown TEST '$(TEST)'. Valid options are: uart, interconnect, timer, gpio, fir, sample_buffer, dma, vga, vga_live, watchdog, pipeline, soc, hello)
 endif
@@ -214,7 +214,6 @@ soc-verdi:
 
 # Shortcut Targets for RISC-V C Firmware Hello World
 hello:
-	$(MAKE) -C sw all
 	$(MAKE) run TEST=hello
 
 hello-verdi:
@@ -272,6 +271,143 @@ test-all:
 	@echo "=================================================================="
 	@echo " ALL IP & SYSTEM PIPELINE TESTS COMPLETED SUCCESSFULLY!           "
 	@echo "=================================================================="
+
+# ------------------------------------------------------------------------------
+# UVM VIP Verification Targets
+# ------------------------------------------------------------------------------
+uvm-axi:
+	@echo "=========================================================="
+	@echo " Running AXI UVM VIP Verification Suite                   "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/axi_uvm_tb && $(MAKE) run
+
+uvm-axi-rand:
+	@echo "=========================================================="
+	@echo " Running AXI UVM VIP Random Test                          "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/axi_uvm_tb && $(MAKE) random
+
+uvm-axi-verdi:
+	cd $(ROOT_DIR)/axi_uvm_tb && $(MAKE) verdi
+
+# ------------------------------------------------------------------------------
+# 16550 UART UVM VIP Verification Targets (TC_COM_01, TC_COM_02, All Features)
+# ------------------------------------------------------------------------------
+uvm-uart:
+	@echo "=========================================================="
+	@echo " Running 16550 UART UVM VIP All Features Test Suite       "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_uart && $(MAKE) run
+
+uvm-uart-tc-com-01:
+	@echo "=========================================================="
+	@echo " Running TC_COM_01: 16550 UART TX Framing Verification    "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_uart && $(MAKE) tc_com_01
+
+uvm-uart-tc-com-02:
+	@echo "=========================================================="
+	@echo " Running TC_COM_02: UART RX FIFO & IRQ Verification       "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_uart && $(MAKE) tc_com_02
+
+uvm-uart-verdi:
+	cd $(ROOT_DIR)/tb_uvm_uart && $(MAKE) verdi
+
+# ------------------------------------------------------------------------------
+# GPIO UVM VIP Verification Targets (TC_COM_03, TC_COM_04, All Features)
+# ------------------------------------------------------------------------------
+uvm-gpio:
+	@echo "=========================================================="
+	@echo " Running GPIO UVM VIP All Features Test Suite             "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_gpio && $(MAKE) run
+
+uvm-gpio-tc-com-03:
+	@echo "=========================================================="
+	@echo " Running TC_COM_03: GPIO Push-Button Sync & IRQ Test      "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_gpio && $(MAKE) tc_com_03
+
+uvm-gpio-tc-com-04:
+	@echo "=========================================================="
+	@echo " Running TC_COM_04: GPIO Status LED Output Drive Test     "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_gpio && $(MAKE) tc_com_04
+
+uvm-gpio-verdi:
+	cd $(ROOT_DIR)/tb_uvm_gpio && $(MAKE) verdi
+
+uvm-timer:
+	@echo "=========================================================="
+	@echo " Running System Timer UVM VIP All Features Test Suite     "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_timer && $(MAKE) run
+
+uvm-timer-tc-acq-01:
+	@echo "=========================================================="
+	@echo " Running TC_ACQ_01: Cycle-Accurate Sample Rate Pacing Test"
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_timer && $(MAKE) tc_acq_01
+
+uvm-timer-verdi:
+	cd $(ROOT_DIR)/tb_uvm_timer && $(MAKE) verdi
+
+uvm-watchdog:
+	@echo "=========================================================="
+	@echo " Running Watchdog Safety Monitor UVM VIP Test Suite       "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_watchdog && $(MAKE) run
+
+uvm-watchdog-tc-wdt-01:
+	@echo "=========================================================="
+	@echo " Running TC_WDT_01: Watchdog Keep-Alive & Reset Trip Test "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_watchdog && $(MAKE) tc_wdt_01
+
+uvm-watchdog-verdi:
+	cd $(ROOT_DIR)/tb_uvm_watchdog && $(MAKE) verdi
+
+uvm-spi:
+	@echo "=========================================================="
+	@echo " Running SPI Master Controller UVM VIP All Features Suite "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_spi && $(MAKE) run
+
+uvm-spi-tc-acq-02:
+	@echo "=========================================================="
+	@echo " Running TC_ACQ_02: Autonomous SPI Hardware Auto-Trigger  "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_spi && $(MAKE) tc_acq_02
+
+uvm-spi-tc-acq-03:
+	@echo "=========================================================="
+	@echo " Running TC_ACQ_03: SPI Prescaler Frequency & Duty Sweep  "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_spi && $(MAKE) tc_acq_03
+
+uvm-spi-tc-acq-04:
+	@echo "=========================================================="
+	@echo " Running TC_ACQ_04: RX FIFO 32-Entry Watermark & Overflow "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_spi && $(MAKE) tc_acq_04
+
+uvm-spi-tc-acq-05:
+	@echo "=========================================================="
+	@echo " Running TC_ACQ_05: Manual SPI Command Transmission       "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_spi && $(MAKE) tc_acq_05
+
+uvm-spi-tc-acq-06:
+	@echo "=========================================================="
+	@echo " Running TC_ACQ_06: SPI Chip-Select Lead / Trail Timing   "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_spi && $(MAKE) tc_acq_06
+
+uvm-spi-verdi:
+	cd $(ROOT_DIR)/tb_uvm_spi && $(MAKE) verdi
+
+
 
 # ------------------------------------------------------------------------------
 # Cleanup

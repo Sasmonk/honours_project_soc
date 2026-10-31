@@ -128,8 +128,10 @@ module spi_controller #(
             sck_phase       <= 1'b0;
             reg_busy        <= 1'b0;
             reg_rxdata      <= 16'd0;
-            reg_rx_valid     <= 1'b0;
+            reg_rx_valid    <= 1'b0;
             sample_ready    <= 1'b0;
+            fifo_wr_ptr     <= { (FIFO_ADDR_W+1){1'b0} };
+            fifo_rd_ptr     <= { (FIFO_ADDR_W+1){1'b0} };
         end else begin
             sample_ready <= 1'b0;
 
@@ -140,7 +142,7 @@ module spi_controller #(
                     clk_div_cnt  <= 8'd0;
                     sck_phase    <= 1'b0;
 
-                    if (reg_spi_en && (sample_tick && reg_auto_trigger)) begin
+                    if (start_transfer) begin
                         reg_busy     <= 1'b1;
                         adc_spi_cs_n <= 1'b0;
                         tx_shift_reg <= reg_txdata;
@@ -280,6 +282,7 @@ module spi_controller #(
                     end
                     8'h08: begin // SPI_TXDATA
                         reg_txdata <= s_axi_wdata[15:0];
+                        if (!reg_auto_trigger) reg_busy <= 1'b1;
                     end
                     8'h10: begin // SPI_CS
                         reg_manual_cs <= s_axi_wdata[0];
