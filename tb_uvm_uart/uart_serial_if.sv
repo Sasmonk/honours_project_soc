@@ -12,6 +12,10 @@ interface uart_serial_if (input logic clk, input logic rst_n);
   // Active baud divisor configuration (set by testbench/sequences)
   int unsigned baud_divisor = 16;
 
+  // UVM Monitor Captured Telemetry (visible in Verdi waveforms)
+  logic [7:0] mon_captured_byte = 8'h00;
+  logic       mon_byte_valid    = 1'b0;
+
   // Modports
   modport driver_mp (
     input  clk, rst_n, uart_tx, uart_irq, baud_divisor,

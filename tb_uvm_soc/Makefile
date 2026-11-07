@@ -29,7 +29,7 @@ ui: compile
 	./simv +UVM_TESTNAME=soc_interactive_ui_test +FSDB -l sim_ui.log
 
 verdi:
-	$(VERDI) -dbdir simv.daidir -ssf soc_uvm.fsdb &
+	$(VERDI) -dbdir simv.daidir -ssf soc_uvm.fsdb -sswr soc_uart_flow.rc &
 
 clean:
 	rm -rf simv* csrc *.log *.key *.fsdb ucli.key vc_hdrs.h DVEfiles *.vpd novas* verdiLog *.vdb verdi_config_file

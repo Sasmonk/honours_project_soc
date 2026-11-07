@@ -1,0 +1,79 @@
+; ==============================================================================
+; Verdi Signal Layout: End-to-End UART Data Flow & UVM VIP Verification
+; Hierarchy : /tb_soc_uvm_top
+; Flow      : IMEM Fetch -> CPU LSU -> AXI Interconnect -> UART Core -> Pin -> UVM Monitor
+; ==============================================================================
+
+; --- 1. Clocks & System Reset ---
+addGroup "1. Clock & Reset"
+addSignal -h 15 /tb_soc_uvm_top/clk
+addSignal -h 15 /tb_soc_uvm_top/rst_n
+
+; --- 2. VeeR EL2 CPU Live PC & Instruction Trace ---
+addGroup "2. CPU Live PC & Trace"
+addSignal -h 15 /tb_soc_uvm_top/dut/trace_rv_i_valid_ip
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/trace_rv_i_address_ip[31:0]
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/trace_rv_i_insn_ip[31:0]
+
+; --- 3. IMEM Instruction Fetch (Memory Subsystem -> Core) ---
+addGroup "3. IMEM Instruction Fetch (M01)"
+addSignal -h 15 /tb_soc_uvm_top/dut/s01_axi_arvalid
+addSignal -h 15 /tb_soc_uvm_top/dut/s01_axi_arready
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/s01_axi_araddr[31:0]
+addSignal -h 15 /tb_soc_uvm_top/dut/s01_axi_rvalid
+addSignal -h 15 /tb_soc_uvm_top/dut/s01_axi_rready
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/s01_axi_rdata[31:0]
+
+; --- 4. CPU LSU AXI Master Write (LSU -> AXI Crossbar) ---
+addGroup "4. CPU LSU AXI Write (Port S00)"
+addSignal -h 15 /tb_soc_uvm_top/dut/lsu_axi_awvalid
+addSignal -h 15 /tb_soc_uvm_top/dut/lsu_axi_awready
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/lsu_axi_awaddr[31:0]
+addSignal -h 15 /tb_soc_uvm_top/dut/lsu_axi_wvalid
+addSignal -h 15 /tb_soc_uvm_top/dut/lsu_axi_wready
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/lsu_axi_wdata[63:0]
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/lsu_axi_wstrb[7:0]
+addSignal -h 15 /tb_soc_uvm_top/dut/lsu_axi_bvalid
+addSignal -h 15 /tb_soc_uvm_top/dut/lsu_axi_bready
+
+; --- 5. AXI Crossbar to 16550 UART (Master Port M00 @ 0x4000_6000) ---
+addGroup "5. Interconnect M00 -> UART Slave"
+addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_awvalid
+addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_awready
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_awaddr[31:0]
+addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_wvalid
+addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_wready
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_wdata[31:0]
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_wstrb[3:0]
+addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_bvalid
+addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_bready
+
+; --- 6. 16550 UART IP Core Internal Transmitter ---
+addGroup "6. UART Core Internal TX & FIFO"
+addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/tx_empty
+addSignal -h 15 -ASCII /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/data_tx_fifo_controller[7:0]
+addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/u_uart_transmitter/tx_send_i
+addSignal -h 15 -ASCII /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/u_uart_transmitter/tx_data_i[7:0]
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/u_uart_transmitter/tx_data_int[7:0]
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/u_uart_transmitter/bitcount_int[3:0]
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/u_uart_transmitter/state[4:0]
+addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/u_uart_transmitter/tx_o
+
+; --- 7. DUT Physical Boundary Pins ---
+addGroup "7. DUT UART Physical Pins"
+addSignal -h 15 /tb_soc_uvm_top/dut/uart_tx
+addSignal -h 15 /tb_soc_uvm_top/dut/uart_rx
+addSignal -h 15 /tb_soc_uvm_top/dut/uart_irq
+
+; --- 8. Physical SystemVerilog Interface (Bridge to VIP) ---
+addGroup "8. SV Interface (uart_serial_if)"
+addSignal -h 15 /tb_soc_uvm_top/uart_if/uart_tx
+addSignal -h 15 /tb_soc_uvm_top/uart_if/uart_rx
+addSignal -h 15 /tb_soc_uvm_top/uart_if/uart_irq
+addSignal -h 15 -DEC /tb_soc_uvm_top/uart_if/baud_divisor
+
+; --- 9. UVM UART VIP Monitor Validation (Side-by-Side Match) ---
+addGroup "9. UVM VIP Monitor (Auto-Decoded)"
+addSignal -h 15 /tb_soc_uvm_top/uart_if/mon_byte_valid
+addSignal -h 15 -ASCII /tb_soc_uvm_top/uart_if/mon_captured_byte[7:0]
+addSignal -h 15 -HEX /tb_soc_uvm_top/uart_if/mon_captured_byte[7:0]

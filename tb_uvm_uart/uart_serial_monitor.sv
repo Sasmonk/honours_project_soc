@@ -74,6 +74,16 @@ class uart_serial_monitor extends uvm_monitor;
         `uvm_info("UART_TX_MON", $sformatf("Captured Valid TX Byte: 0x%02h ('%c')", captured_byte, captured_byte), UVM_MEDIUM)
       end
 
+      // Update interface telemetry for Verdi waveform observation
+      vif.mon_captured_byte <= captured_byte;
+      vif.mon_byte_valid    <= 1'b1;
+      fork
+        begin
+          repeat (bit_cycles) @(posedge vif.clk);
+          vif.mon_byte_valid <= 1'b0;
+        end
+      join_none
+
       ap.write(item);
     end
   endtask : monitor_tx_serial
