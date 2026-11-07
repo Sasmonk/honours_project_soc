@@ -1,7 +1,7 @@
 ; ==============================================================================
-; Verdi Signal Layout: End-to-End UART Data Flow & UVM VIP Verification
+; Verdi Signal Layout: End-to-End UART Data Flow & UVM VIP Bit Verification
 ; Hierarchy : /tb_soc_uvm_top
-; Flow      : IMEM Fetch -> CPU LSU -> AXI Interconnect -> UART Core -> Pin -> UVM Monitor
+; Flow      : IMEM Fetch -> CPU LSU -> AXI Interconnect -> UART Core -> Pin -> UVM Bit Monitor
 ; ==============================================================================
 
 ; --- 1. Clocks & System Reset ---
@@ -35,6 +35,12 @@ addSignal -h 15 -HEX /tb_soc_uvm_top/dut/lsu_axi_wdata[63:0]
 addSignal -h 15 -HEX /tb_soc_uvm_top/dut/lsu_axi_wstrb[7:0]
 addSignal -h 15 /tb_soc_uvm_top/dut/lsu_axi_bvalid
 addSignal -h 15 /tb_soc_uvm_top/dut/lsu_axi_bready
+addSignal -h 15 /tb_soc_uvm_top/dut/lsu_axi_arvalid
+addSignal -h 15 /tb_soc_uvm_top/dut/lsu_axi_arready
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/lsu_axi_araddr[31:0]
+addSignal -h 15 /tb_soc_uvm_top/dut/lsu_axi_rvalid
+addSignal -h 15 /tb_soc_uvm_top/dut/lsu_axi_rready
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/lsu_axi_rdata[63:0]
 
 ; --- 5. AXI Crossbar to 16550 UART (Master Port M00 @ 0x4000_6000) ---
 addGroup "5. Interconnect M00 -> UART Slave"
@@ -44,9 +50,16 @@ addSignal -h 15 -HEX /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_awaddr[31:0
 addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_wvalid
 addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_wready
 addSignal -h 15 -HEX /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_wdata[31:0]
+addSignal -h 15 -ASCII /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_wdata[7:0]
 addSignal -h 15 -HEX /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_wstrb[3:0]
 addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_bvalid
 addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_bready
+addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_arvalid
+addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_arready
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_araddr[31:0]
+addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_rvalid
+addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_rready
+addSignal -h 15 -HEX /tb_soc_uvm_top/dut/u_interconnect_uart/m00_axi_rdata[31:0]
 
 ; --- 6. 16550 UART IP Core Internal Transmitter ---
 addGroup "6. UART Core Internal TX & FIFO"
@@ -55,7 +68,7 @@ addSignal -h 15 -ASCII /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/data_t
 addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/u_uart_transmitter/tx_send_i
 addSignal -h 15 -ASCII /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/u_uart_transmitter/tx_data_i[7:0]
 addSignal -h 15 -HEX /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/u_uart_transmitter/tx_data_int[7:0]
-addSignal -h 15 -HEX /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/u_uart_transmitter/bitcount_int[3:0]
+addSignal -h 15 -DEC /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/u_uart_transmitter/bitcount_int[3:0]
 addSignal -h 15 -HEX /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/u_uart_transmitter/state[4:0]
 addSignal -h 15 /tb_soc_uvm_top/dut/u_interconnect_uart/u_axi_uart/u_uart_transmitter/tx_o
 
@@ -72,8 +85,15 @@ addSignal -h 15 /tb_soc_uvm_top/uart_if/uart_rx
 addSignal -h 15 /tb_soc_uvm_top/uart_if/uart_irq
 addSignal -h 15 -DEC /tb_soc_uvm_top/uart_if/baud_divisor
 
-; --- 9. UVM UART VIP Monitor Validation (Side-by-Side Match) ---
-addGroup "9. UVM VIP Monitor (Auto-Decoded)"
+; --- 9. UVM UART VIP Monitor (Raw Wire Probing & Bit-by-Bit Sampling) ---
+addGroup "9. UVM VIP Monitor (Raw Wire & Bit Telemetry)"
+addSignal -h 15 /tb_soc_uvm_top/uart_if/uart_tx
+addSignal -h 15 /tb_soc_uvm_top/uart_if/mon_in_frame
+addSignal -h 15 /tb_soc_uvm_top/uart_if/mon_bit_sample_strobe
+addSignal -h 15 -DEC /tb_soc_uvm_top/uart_if/mon_bit_index[3:0]
+addSignal -h 15 /tb_soc_uvm_top/uart_if/mon_sampled_bit
+addSignal -h 15 -BIN /tb_soc_uvm_top/uart_if/mon_shift_reg[7:0]
+addSignal -h 15 -HEX /tb_soc_uvm_top/uart_if/mon_shift_reg[7:0]
 addSignal -h 15 /tb_soc_uvm_top/uart_if/mon_byte_valid
 addSignal -h 15 -ASCII /tb_soc_uvm_top/uart_if/mon_captured_byte[7:0]
 addSignal -h 15 -HEX /tb_soc_uvm_top/uart_if/mon_captured_byte[7:0]

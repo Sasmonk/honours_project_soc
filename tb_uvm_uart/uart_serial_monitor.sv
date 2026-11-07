@@ -37,6 +37,12 @@ class uart_serial_monitor extends uvm_monitor;
     bit [7:0] captured_byte;
     uart_serial_item item;
 
+    vif.mon_in_frame          <= 1'b0;
+    vif.mon_bit_sample_strobe <= 1'b0;
+    vif.mon_bit_index         <= 4'd0;
+    vif.mon_sampled_bit       <= 1'b1;
+    vif.mon_shift_reg         <= 8'h00;
+
     @(posedge vif.rst_n);
 
     forever begin
@@ -45,11 +51,24 @@ class uart_serial_monitor extends uvm_monitor;
 
       // 1. Wait for Start Bit (falling edge on uart_tx)
       @(negedge vif.uart_tx);
+      vif.mon_in_frame  <= 1'b1;
+      vif.mon_bit_index <= 4'd0;
+      vif.mon_shift_reg <= 8'h00;
 
       // Verify start bit remains low at mid-bit
       repeat (bit_cycles / 2) @(posedge vif.clk);
+      vif.mon_sampled_bit       <= vif.uart_tx;
+      vif.mon_bit_sample_strobe <= 1'b1;
+      fork
+        begin
+          @(posedge vif.clk);
+          vif.mon_bit_sample_strobe <= 1'b0;
+        end
+      join_none
+
       if (vif.uart_tx !== 1'b0) begin
         `uvm_warning("UART_TX_GLITCH", "Glitched start bit detected on uart_tx!")
+        vif.mon_in_frame <= 1'b0;
         continue;
       end
 
@@ -57,11 +76,31 @@ class uart_serial_monitor extends uvm_monitor;
       captured_byte = 8'd0;
       for (int i = 0; i < 8; i++) begin
         repeat (bit_cycles) @(posedge vif.clk);
-        captured_byte[i] = vif.uart_tx;
+        captured_byte[i]           = vif.uart_tx;
+        vif.mon_bit_index         <= i + 1;
+        vif.mon_sampled_bit       <= vif.uart_tx;
+        vif.mon_shift_reg         <= captured_byte;
+        vif.mon_bit_sample_strobe <= 1'b1;
+        fork
+          begin
+            @(posedge vif.clk);
+            vif.mon_bit_sample_strobe <= 1'b0;
+          end
+        join_none
       end
 
       // 3. Sample Stop Bit at Mid-Bit interval (must be 1)
       repeat (bit_cycles) @(posedge vif.clk);
+      vif.mon_bit_index         <= 4'd9;
+      vif.mon_sampled_bit       <= vif.uart_tx;
+      vif.mon_bit_sample_strobe <= 1'b1;
+      fork
+        begin
+          @(posedge vif.clk);
+          vif.mon_bit_sample_strobe <= 1'b0;
+        end
+      join_none
+
       item = uart_serial_item::type_id::create("mon_tx_item");
       item.data      = captured_byte;
       item.timestamp = $realtime;
@@ -81,6 +120,7 @@ class uart_serial_monitor extends uvm_monitor;
         begin
           repeat (bit_cycles) @(posedge vif.clk);
           vif.mon_byte_valid <= 1'b0;
+          vif.mon_in_frame   <= 1'b0;
         end
       join_none
 
