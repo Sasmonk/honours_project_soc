@@ -75,6 +75,13 @@ module sample_buffer #(
     // 4096 x 16-bit True Dual-Port RAM Array
     reg [15:0] mem [0:BUFFER_DEPTH-1];
 
+    integer init_i;
+    initial begin
+        for (init_i = 0; init_i < BUFFER_DEPTH; init_i = init_i + 1) begin
+            mem[init_i] = 16'd0;
+        end
+    end
+
     // -------------------------------------------------------------------------
     // Ping-Pong Double-Buffering State Machine (clk_sys)
     // -------------------------------------------------------------------------

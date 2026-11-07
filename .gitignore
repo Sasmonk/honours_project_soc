@@ -38,3 +38,4 @@ report.txt
 *.ppm
 *.o
 *.elf
+*.vdb/

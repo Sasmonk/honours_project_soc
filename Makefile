@@ -407,7 +407,191 @@ uvm-spi-tc-acq-06:
 uvm-spi-verdi:
 	cd $(ROOT_DIR)/tb_uvm_spi && $(MAKE) verdi
 
+uvm-fir:
+	@echo "=========================================================="
+	@echo " Running 16-Tap FIR Digital Filter UVM All Features Suite "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_fir && $(MAKE) run
 
+uvm-fir-tc-fir-01:
+	@echo "=========================================================="
+	@echo " Running TC_FIR_01: Q1.15 Impulse Response Matching       "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_fir && $(MAKE) tc_fir_01
+
+uvm-fir-tc-fir-02:
+	@echo "=========================================================="
+	@echo " Running TC_FIR_02: Hardware Bypass vs Active Filter Mode "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_fir && $(MAKE) tc_fir_02
+
+uvm-fir-tc-fir-03:
+	@echo "=========================================================="
+	@echo " Running TC_FIR_03: Dynamic Runtime Tap Scaling (4->12)   "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_fir && $(MAKE) tc_fir_03
+
+uvm-fir-tc-fir-04:
+	@echo "=========================================================="
+	@echo " Running TC_FIR_04: Overflow & Saturation Clamping SVA    "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_fir && $(MAKE) tc_fir_04
+
+uvm-fir-tc-fir-05:
+	@echo "=========================================================="
+	@echo " Running TC_FIR_05: Low-Pass Noise Attenuation vs Golden  "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_fir && $(MAKE) tc_fir_05
+
+uvm-fir-tc-fir-06:
+	@echo "=========================================================="
+	@echo " Running TC_FIR_06: Direct Memory-Mapped Sample Injection "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_fir && $(MAKE) tc_fir_06
+
+uvm-fir-verdi:
+	cd $(ROOT_DIR)/tb_uvm_fir && $(MAKE) verdi
+
+uvm-sample-buffer:
+	@echo "=========================================================="
+	@echo " Running Dual-Port Sample Buffer UVM All Features Suite   "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_sample_buffer && $(MAKE) run
+
+uvm-sample-buffer-tc-buf-01:
+	@echo "=========================================================="
+	@echo " Running TC_BUF_01: Tear-Free Rotation Synchronized VSYNC "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_sample_buffer && $(MAKE) tc_buf_01
+
+uvm-sample-buffer-tc-buf-02:
+	@echo "=========================================================="
+	@echo " Running TC_BUF_02: Write-Hold Freeze Mode Check          "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_sample_buffer && $(MAKE) tc_buf_02
+
+uvm-sample-buffer-tc-buf-03:
+	@echo "=========================================================="
+	@echo " Running TC_BUF_03: Concurrent 3-Port Access Stress       "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_sample_buffer && $(MAKE) tc_buf_03
+
+uvm-sample-buffer-tc-buf-04:
+	@echo "=========================================================="
+	@echo " Running TC_BUF_04: Manual Bank Swap Override Check       "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_sample_buffer && $(MAKE) tc_buf_04
+
+uvm-sample-buffer-tc-buf-05:
+	@echo "=========================================================="
+	@echo " Running TC_BUF_05: Asynchronous CDC SVA Verification     "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_sample_buffer && $(MAKE) tc_buf_05
+
+uvm-sample-buffer-verdi:
+	cd $(ROOT_DIR)/tb_uvm_sample_buffer && $(MAKE) verdi
+
+# ------------------------------------------------------------------------------
+# UVM Verification Targets for VGA Controller IP (tb_uvm_vga)
+# ------------------------------------------------------------------------------
+uvm-vga:
+	@echo "=========================================================="
+	@echo " Compiling and Running VGA Oscilloscope UVM Verification  "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_vga && $(MAKE) run
+
+uvm-vga-tc-vga-01:
+	@echo "=========================================================="
+	@echo " Running TC_VGA_01: VESA 640x480 @ 60Hz Timing Compliance "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_vga && $(MAKE) tc_vga_01
+
+uvm-vga-tc-vga-02:
+	@echo "=========================================================="
+	@echo " Running TC_VGA_02: Rising / Falling Trigger Edge         "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_vga && $(MAKE) tc_vga_02
+
+uvm-vga-tc-vga-03:
+	@echo "=========================================================="
+	@echo " Running TC_VGA_03: Holdoff Timeout & Free-Run Fallback   "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_vga && $(MAKE) tc_vga_03
+
+uvm-vga-tc-vga-04:
+	@echo "=========================================================="
+	@echo " Running TC_VGA_04: VDIV & TDIV Scaling Sweep             "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_vga && $(MAKE) tc_vga_04
+
+uvm-vga-tc-vga-05:
+	@echo "=========================================================="
+	@echo " Running TC_VGA_05: Software UI Color Customization       "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_vga && $(MAKE) tc_vga_05
+
+uvm-vga-tc-vga-06:
+	@echo "=========================================================="
+	@echo " Running TC_VGA_06: Voltage Cursors A & B Overlay         "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_vga && $(MAKE) tc_vga_06
+
+uvm-vga-verdi:
+	cd $(ROOT_DIR)/tb_uvm_vga && $(MAKE) verdi
+
+# ------------------------------------------------------------------------------
+# UVM Verification Targets for Autonomous DMA Controller IP (tb_uvm_dma)
+# ------------------------------------------------------------------------------
+uvm-dma:
+	@echo "=========================================================="
+	@echo " Compiling and Running DMA Controller UVM Verification    "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_dma && $(MAKE) run
+
+uvm-dma-tc-dma-01:
+	@echo "=========================================================="
+	@echo " Running TC_DMA_01: Streaming Pipeline (ADC/FIR->SBUF)    "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_dma && $(MAKE) tc_dma_01
+
+uvm-dma-tc-dma-02:
+	@echo "=========================================================="
+	@echo " Running TC_DMA_02: AXI4 Master Block Move                "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_dma && $(MAKE) tc_dma_02
+
+uvm-dma-tc-dma-03:
+	@echo "=========================================================="
+	@echo " Running TC_DMA_03: Rate-Paced vs Free-Running Transfer   "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_dma && $(MAKE) tc_dma_03
+
+uvm-dma-tc-dma-04:
+	@echo "=========================================================="
+	@echo " Running TC_DMA_04: Auto-Reload Ring Buffer Mode          "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_dma && $(MAKE) tc_dma_04
+
+uvm-dma-tc-dma-05:
+	@echo "=========================================================="
+	@echo " Running TC_DMA_05: Bus Stall Timeout & Watchdog Recovery "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_dma && $(MAKE) tc_dma_05
+
+uvm-dma-tc-dma-06:
+	@echo "=========================================================="
+	@echo " Running TC_DMA_06: FIFO Underrun / Error Recovery        "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_dma && $(MAKE) tc_dma_06
+
+uvm-dma-tc-dma-07:
+	@echo "=========================================================="
+	@echo " Running TC_DMA_07: Fixed vs Incrementing Addressing      "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_dma && $(MAKE) tc_dma_07
+
+uvm-dma-verdi:
+	cd $(ROOT_DIR)/tb_uvm_dma && $(MAKE) verdi
 
 # ------------------------------------------------------------------------------
 # Cleanup
@@ -418,6 +602,9 @@ clean:
 	rm -rf $(RUN_DIR)/*.log $(RUN_DIR)/*.fsdb $(RUN_DIR)/novas* $(RUN_DIR)/verdiLog $(RUN_DIR)/ucli.key
 	rm -rf $(RUN_DIR)/*.bmp $(RUN_DIR)/*.ppm $(ROOT_DIR)/*.bmp $(ROOT_DIR)/*.ppm
 	rm -rf $(ROOT_DIR)/*.log $(ROOT_DIR)/simv $(ROOT_DIR)/simv.daidir $(ROOT_DIR)/csrc $(ROOT_DIR)/verdiLog $(ROOT_DIR)/fsdbreportLog $(ROOT_DIR)/ucli.key
+	@echo "Cleaning UVM simulation build directories..."
+	rm -rf $(ROOT_DIR)/tb_uvm_*/simv $(ROOT_DIR)/tb_uvm_*/simv.daidir $(ROOT_DIR)/tb_uvm_*/csrc
+	rm -rf $(ROOT_DIR)/tb_uvm_*/*.log $(ROOT_DIR)/tb_uvm_*/*.fsdb $(ROOT_DIR)/tb_uvm_*/novas* $(ROOT_DIR)/tb_uvm_*/verdiLog $(ROOT_DIR)/tb_uvm_*/ucli.key $(ROOT_DIR)/tb_uvm_*/vc_hdrs.h $(ROOT_DIR)/tb_uvm_*/*.vcd $(ROOT_DIR)/tb_uvm_*/*.vdb
 	@echo "Clean completed."
 
 # ------------------------------------------------------------------------------

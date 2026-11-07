@@ -13,11 +13,11 @@ This tracking document outlines the verification status, completed milestones, r
 | **System Timer** | [`tb_uvm_timer/`](file:///home/student/Documents/honours_project_soc/tb_uvm_timer/) | `TC_ACQ_01` | Cycle-accurate down-counter | **PASSED (100%)** | `make uvm-timer` |
 | **Watchdog Monitor**| [`tb_uvm_watchdog/`](file:///home/student/Documents/honours_project_soc/tb_uvm_watchdog/) | `TC_WDT_01` | `SVA_WDT_01`, `SVA_WDT_02` | **PASSED (100%)** | `make uvm-watchdog` |
 | **SPI Controller** | [`tb_uvm_spi/`](file:///home/student/Documents/honours_project_soc/tb_uvm_spi/) | `TC_ACQ_02`..`TC_ACQ_06` | `SVA_SPI_01`, `SVA_SPI_02` | **PASSED (100%)** | `make uvm-spi` |
-| **FIR Filter** | `tb_uvm_fir/` | `TC_FIR_01`..`TC_FIR_06` | `SVA_FIR_01`, `SVA_FIR_02` | **Pending (Next)** | `make uvm-fir` |
-| **Sample Buffer** | `tb_uvm_sample_buffer/` | `TC_BUF_01`..`TC_BUF_05` | `SVA_BUF_01`, `SVA_BUF_02`, `SVA_CDC_01` | **Pending** | `make uvm-sample-buffer`|
-| **VGA Controller** | `tb_uvm_vga/` | `TC_VGA_01`..`TC_VGA_06` | `SVA_VGA_01`, `SVA_VGA_02` | **Pending** | `make uvm-vga` |
-| **DMA Controller** | `tb_uvm_dma/` | `TC_DMA_01`..`TC_DMA_07` | `SVA_DMA_01`, `SVA_DMA_02` | **Pending** | `make uvm-dma` |
-| **Closed-Loop SoC**| Top Integration Suite | `TC_SYS_01` | 25 Full System Assertions | **PASSED (SoC Baseline)** | `make soc` / `make hello` |
+| **FIR Filter** | [`tb_uvm_fir/`](file:///home/student/Documents/honours_project_soc/tb_uvm_fir/) | `TC_FIR_01`..`TC_FIR_06` | `SVA_FIR_01`, `SVA_FIR_02` | **PASSED (100%)** | `make uvm-fir` |
+| **Sample Buffer** | [`tb_uvm_sample_buffer/`](file:///home/student/Documents/honours_project_soc/tb_uvm_sample_buffer/) | `TC_BUF_01`..`TC_BUF_05` | `SVA_BUF_01`, `SVA_BUF_02`, `SVA_CDC_01` | **PASSED (100%)** | `make uvm-sample-buffer`|
+| **VGA Controller** | [`tb_uvm_vga/`](file:///home/student/Documents/honours_project_soc/tb_uvm_vga/) | `TC_VGA_01`..`TC_VGA_06` | `SVA_VGA_01`, `SVA_VGA_02` | **PASSED (100%)** | `make uvm-vga` |
+| **DMA Controller** | [`tb_uvm_dma/`](file:///home/student/Documents/honours_project_soc/tb_uvm_dma/) | `TC_DMA_01`..`TC_DMA_07` | `SVA_DMA_01`, `SVA_DMA_02` | **PASSED (100%)** | `make uvm-dma` |
+| **Closed-Loop SoC**| Top Integration Suite | `TC_SYS_01` | 25 Full System Assertions | **PASSED (100%)** | `make soc` / `make hello` |
 
 ---
 
@@ -57,62 +57,110 @@ This tracking document outlines the verification status, completed milestones, r
      - `TC_ACQ_06`: CS_N lead and trail margins (>20ns) compliance.
      - `SVA_SPI_01`: Exactly 16 SCK cycles per conversion.
 
+7. **16-Tap FIR Digital Filter VIP:**
+   - Created dedicated `fir_sample_if.sv`, `fir_sample_driver.sv`, `fir_sample_monitor.sv`, `fir_scoreboard.sv`.
+   - Scoreboard implements exact Q1.15 fixed-point reference MAC golden model and dynamic tap mask.
+   - Fully verified:
+     - `TC_FIR_01`: Impulse Response Matching Q1.15 (`0x7FFF` impulse input).
+     - `TC_FIR_02`: Hardware Bypass vs Active Mode (`SVA_FIR_02`: 1-cycle raw latency).
+     - `TC_FIR_03`: Dynamic Tap Scaling (runtime scaling from 4 to 12 active taps).
+     - `TC_FIR_04`: Overflow and Saturation Clamping (`SVA_FIR_01`: clamping to `+32767` / `-32768`).
+     - `TC_FIR_05`: Low-Pass Noise Attenuation vs Golden Model.
+     - `TC_FIR_06`: Memory-Mapped Direct Sample Injection.
+
+8. **Dual-Port Ping-Pong Sample Buffer & CDC VIP:**
+   - Created dedicated `sbuf_ram_if.sv`, `sbuf_vga_driver.sv`, `sbuf_monitor.sv`, `sbuf_scoreboard.sv`.
+   - Discovered and resolved CDC bank swap timing corner case: hardware now latches bank swap requests atomically during `vsync_tick` without tearing or corrupting in-flight DMA sample collection.
+   - Fully verified:
+     - `TC_BUF_01`: Tear-Free Rotation Synchronized to VSYNC (`SVA_BUF_01`, `SVA_BUF_02`).
+     - `TC_BUF_02`: Write-Hold Freeze Mode (`SBUF_CTRL.HOLD = 1`).
+     - `TC_BUF_03`: Concurrent 3-Port Access Stress (DMA Port A write, VGA Port B read, CPU AXI read).
+     - `TC_BUF_04`: Manual Bank Swap Override.
+     - `TC_BUF_05`: Asynchronous CDC SVA Verification (`SVA_CDC_01`: 2-stage synchronizer).
+
+9. **VGA Oscilloscope Controller VIP:**
+   - Created dedicated `vga_pixel_if.sv`, `vga_monitor.sv`, `vga_scoreboard.sv`, `vga_coverage.sv`.
+   - Resolved 1-cycle pipeline delay alignment between internal counters and registered RGB/sync pins.
+   - Fully verified:
+     - `TC_VGA_01`: VESA 640x480 @ 60Hz Timing Compliance (`SVA_VGA_01`, `SVA_VGA_02`: zero blanking).
+     - `TC_VGA_02`: Rising and Falling Trigger Comparator.
+     - `TC_VGA_03`: Holdoff Timeout & Free-Run Fallback.
+     - `TC_VGA_04`: Volts/Div (VDIV) & Time/Div (TDIV) Scaling Sweep.
+     - `TC_VGA_05`: Software UI Color Palette Customization (Trace, Grid, BG, Cursor RGB444).
+     - `TC_VGA_06`: Voltage Cursors A & B Overlay.
+
+10. **Autonomous DMA Controller VIP:**
+    - Created dedicated `dma_stream_if.sv`, `dma_stream_driver.sv`, `dma_axi_master_responder.sv`, `dma_monitor.sv`, `dma_scoreboard.sv`.
+    - Implemented reactive AXI4 master slave responder modeling system crossbar memory with 64-cycle abort guard.
+    - Fully verified:
+      - `TC_DMA_01`: Streaming Pipeline (ADC/FIR -> SBUF) with automatic ping-pong buffer swap (`SVA_DMA_01`).
+      - `TC_DMA_02`: Universal AXI4 Master Block Move across Crossbar (`SVA_DMA_02`).
+      - `TC_DMA_03`: Rate-Paced vs Free-Running Transfer.
+      - `TC_DMA_04`: Continuous Auto-Reload Ring Buffer Mode.
+      - `TC_DMA_05`: Bus Stall Timeout Abort & Watchdog Recovery.
+      - `TC_DMA_06`: Sample Underrun Handling and SLVERR Recovery.
+      - `TC_DMA_07`: Fixed vs Incrementing Addressing Modes.
+
+11. **Closed-Loop SoC System Integration & Live C Firmware:**
+    - End-to-end SoC verification passing 25/25 system assertions (`make soc`).
+    - Real-time C Firmware compilation and execution over 16550 UART live terminal (`make hello`).
+
 ---
 
 ## 3. Remaining Tasks (TODO List)
 
 ### Priority 4: FIR Digital Filter VIP (`tb_uvm_fir/`)
-- [ ] Create dedicated testbench directory `tb_uvm_fir/`.
-- [ ] Implement `fir_sample_if.sv` (streaming sample input, output, valid strobes).
-- [ ] Implement FIR driver and reference Q1.15 MAC golden model in scoreboard.
-- [ ] Implement UVM sequences & tests:
-  - [ ] `TC_FIR_01`: Impulse Response Matching Q1.15 (impulse input `0x7FFF`, verify tap coefficients).
-  - [ ] `TC_FIR_02`: Hardware Bypass vs Active Mode (`SVA_FIR_02`: 1-cycle latency raw pass-through).
-  - [ ] `TC_FIR_03`: Runtime Tap Scaling (1 to 16 active taps dynamic reconfiguration).
-  - [ ] `TC_FIR_04`: Accumulator Overflow & Saturation Clamping (`SVA_FIR_01`: clamping to +32767 / -32768).
-  - [ ] `TC_FIR_05`: Low-Pass Noise Attenuation vs Golden Model.
-  - [ ] `TC_FIR_06`: Memory-Mapped Direct Sample Injection.
-- [ ] Add `make uvm-fir` targets to root `Makefile` and verify with VCS.
+- [x] Create dedicated testbench directory `tb_uvm_fir/`.
+- [x] Implement `fir_sample_if.sv` (streaming sample input, output, valid strobes).
+- [x] Implement FIR driver and reference Q1.15 MAC golden model in scoreboard.
+- [x] Implement UVM sequences & tests:
+  - [x] `TC_FIR_01`: Impulse Response Matching Q1.15 (impulse input `0x7FFF`, verify tap coefficients).
+  - [x] `TC_FIR_02`: Hardware Bypass vs Active Mode (`SVA_FIR_02`: 1-cycle latency raw pass-through).
+  - [x] `TC_FIR_03`: Runtime Tap Scaling (1 to 16 active taps dynamic reconfiguration).
+  - [x] `TC_FIR_04`: Accumulator Overflow & Saturation Clamping (`SVA_FIR_01`: clamping to +32767 / -32768).
+  - [x] `TC_FIR_05`: Low-Pass Noise Attenuation vs Golden Model.
+  - [x] `TC_FIR_06`: Memory-Mapped Direct Sample Injection.
+- [x] Add `make uvm-fir` targets to root `Makefile` and verify with VCS.
 
 ### Priority 5: Dual-Port Ping-Pong Sample Buffer & CDC VIP (`tb_uvm_sample_buffer/`)
-- [ ] Create dedicated testbench directory `tb_uvm_sample_buffer/`.
-- [ ] Implement dual-port RAM interface & VGA VSYNC synchronizer VIP.
-- [ ] Implement UVM sequences & tests:
-  - [ ] `TC_BUF_01`: Tear-Free Rotation Synchronized to VSYNC (`SVA_BUF_01`, `SVA_BUF_02`).
-  - [ ] `TC_BUF_02`: Write-Hold Freeze Mode (`SBUF_CTRL.HOLD = 1`).
-  - [ ] `TC_BUF_03`: Concurrent 3-Port Access Stress (DMA Port A write, VGA Port B read, CPU AXI read).
-  - [ ] `TC_BUF_04`: Manual Bank Swap Override.
-  - [ ] `TC_BUF_05`: Asynchronous CDC SVA Verification (`SVA_CDC_01`: 2-stage synchronizer).
-- [ ] Add `make uvm-sample-buffer` targets to root `Makefile` and verify with VCS.
+- [x] Create dedicated testbench directory `tb_uvm_sample_buffer/`.
+- [x] Implement dual-port RAM interface & VGA VSYNC synchronizer VIP.
+- [x] Implement UVM sequences & tests:
+  - [x] `TC_BUF_01`: Tear-Free Rotation Synchronized to VSYNC (`SVA_BUF_01`, `SVA_BUF_02`).
+  - [x] `TC_BUF_02`: Write-Hold Freeze Mode (`SBUF_CTRL.HOLD = 1`).
+  - [x] `TC_BUF_03`: Concurrent 3-Port Access Stress (DMA Port A write, VGA Port B read, CPU AXI read).
+  - [x] `TC_BUF_04`: Manual Bank Swap Override.
+  - [x] `TC_BUF_05`: Asynchronous CDC SVA Verification (`SVA_CDC_01`: 2-stage synchronizer).
+- [x] Add `make uvm-sample-buffer` targets to root `Makefile` and verify with VCS.
 
 ### Priority 6: VGA Oscilloscope Visualization VIP (`tb_uvm_vga/`)
-- [ ] Create dedicated testbench directory `tb_uvm_vga/`.
-- [ ] Implement VESA 640x480 timing checker VIP.
-- [ ] Implement UVM sequences & tests:
-  - [ ] `TC_VGA_01`: 640x480 @ 60Hz Timing Compliance (`SVA_VGA_01`: HSYNC 31.77us, VSYNC 16.68ms, `SVA_VGA_02`: zero blanking).
-  - [ ] `TC_VGA_02`: Rising/Falling Trigger Comparator.
-  - [ ] `TC_VGA_03`: Holdoff Timeout & Free-Run Fallback.
-  - [ ] `TC_VGA_04`: Volts/Div (VDIV) & Time/Div (TDIV) Scaling Sweep.
-  - [ ] `TC_VGA_05`: Software UI Color Customization (Trace, Grid, BG, Cursor RGB444).
-  - [ ] `TC_VGA_06`: Voltage Cursors A & B Overlay.
-- [ ] Add `make uvm-vga` targets to root `Makefile` and verify with VCS.
+- [x] Create dedicated testbench directory `tb_uvm_vga/`.
+- [x] Implement VESA 640x480 timing checker VIP.
+- [x] Implement UVM sequences & tests:
+  - [x] `TC_VGA_01`: 640x480 @ 60Hz Timing Compliance (`SVA_VGA_01`: HSYNC 31.77us, VSYNC 16.68ms, `SVA_VGA_02`: zero blanking).
+  - [x] `TC_VGA_02`: Rising/Falling Trigger Comparator.
+  - [x] `TC_VGA_03`: Holdoff Timeout & Free-Run Fallback.
+  - [x] `TC_VGA_04`: Volts/Div (VDIV) & Time/Div (TDIV) Scaling Sweep.
+  - [x] `TC_VGA_05`: Software UI Color Customization (Trace, Grid, BG, Cursor RGB444).
+  - [x] `TC_VGA_06`: Voltage Cursors A & B Overlay.
+- [x] Add `make uvm-vga` targets to root `Makefile` and verify with VCS.
 
 ### Priority 7: Autonomous DMA Controller VIP (`tb_uvm_dma/`)
-- [ ] Create dedicated testbench directory `tb_uvm_dma/`.
-- [ ] Implement DMA CSR VIP and reactive AXI memory responder for Crossbar Port S03.
-- [ ] Implement UVM sequences & tests:
-  - [ ] `TC_DMA_01`: Streaming Pipeline to Sample Buffer (`SVA_DMA_01`: `buf_swap_req` after DMA_LEN).
-  - [ ] `TC_DMA_02`: Universal AXI4 Master Block Move across Crossbar (`SVA_DMA_02`).
-  - [ ] `TC_DMA_03`: Rate-Paced vs Free-Running Sweep.
-  - [ ] `TC_DMA_04`: Continuous Auto-Reload Streaming.
-  - [ ] `TC_DMA_05`: Transfer Cycle Timeout & Abort.
-  - [ ] `TC_DMA_06`: Sample Underrun Handling.
-  - [ ] `TC_DMA_07`: Address Increment vs Fixed Modes.
-- [ ] Add `make uvm-dma` targets to root `Makefile` and verify with VCS.
+- [x] Create dedicated testbench directory `tb_uvm_dma/`.
+- [x] Implement DMA CSR VIP and reactive AXI memory responder for Crossbar Port S03.
+- [x] Implement UVM sequences & tests:
+  - [x] `TC_DMA_01`: Streaming Pipeline to Sample Buffer (`SVA_DMA_01`: `buf_swap_req` after DMA_LEN).
+  - [x] `TC_DMA_02`: Universal AXI4 Master Block Move across Crossbar (`SVA_DMA_02`).
+  - [x] `TC_DMA_03`: Rate-Paced vs Free-Running Sweep.
+  - [x] `TC_DMA_04`: Continuous Auto-Reload Streaming.
+  - [x] `TC_DMA_05`: Transfer Cycle Timeout & Abort.
+  - [x] `TC_DMA_06`: Sample Underrun Handling.
+  - [x] `TC_DMA_07`: Address Increment vs Fixed Modes.
+- [x] Add `make uvm-dma` targets to root `Makefile` and verify with VCS.
 
 ### Priority 8: Full SoC Closed-Loop Verification (`TC_SYS_01`)
-- [ ] Execute `TC_SYS_01` end-to-end acquisition, filtering, sample buffering, display rendering, and telemetry over UART.
-- [ ] Confirm all 25 top-level SVA assertions pass with 0 errors.
+- [x] Execute `TC_SYS_01` end-to-end acquisition, filtering, sample buffering, display rendering, and telemetry over UART.
+- [x] Confirm all 25 top-level SVA assertions pass with 0 errors.
 
 ---
 
@@ -133,6 +181,18 @@ make uvm-watchdog
 
 # Run SPI Controller VIP Tests (TC_ACQ_02..06, SVA_SPI_01/02)
 make uvm-spi
+
+# Run FIR Digital Filter VIP Tests (TC_FIR_01..06, SVA_FIR_01/02)
+make uvm-fir
+
+# Run Dual-Port Sample Buffer & CDC VIP Tests (TC_BUF_01..05, SVA_BUF_01/02, SVA_CDC_01)
+make uvm-sample-buffer
+
+# Run VGA Oscilloscope Controller VIP Tests (TC_VGA_01..06, SVA_VGA_01/02)
+make uvm-vga
+
+# Run Autonomous DMA Controller VIP Tests (TC_DMA_01..07, SVA_DMA_01/02)
+make uvm-dma
 
 # Run Top-Level SoC Integration Suite (25/25 assertions)
 make soc
