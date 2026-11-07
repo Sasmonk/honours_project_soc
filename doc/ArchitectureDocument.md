@@ -56,8 +56,8 @@ flowchart TB
     end
 
     subgraph XBAR["AXI4 Crossbar Interconnect (5-Master x 20-Slave)"]
-        S00["Port S00: IFU Fetch"]
-        S01["Port S01: LSU Load/Store"]
+        S00["Port S00: LSU Load/Store"]
+        S01["Port S01: IFU Fetch"]
         S02["Port S02: System/Debug"]
         S03["Port S03: DMA Master"]
         S04["Port S04: Tied Off"]
@@ -73,28 +73,28 @@ flowchart TB
         TIMER["System Timer IP<br/>0x4000_8000"]
         GPIO["GPIO Controller<br/>0x4000_A000"]
         SPI["SPI Master Controller<br/>0x4000_C000"]
-        FIR["FIR Filter CSRs<br/>0x4000_E000"]
+        WDT["Watchdog Safety Monitor<br/>0x4000_E000"]
         DMA["Autonomous DMA Controller<br/>0x4001_0000"]
+        FIR["FIR Filter Engine<br/>0x4001_2000"]
         VGA["VGA Controller CSRs<br/>0x4001_4000"]
         SBUF["Sample Buffer (DP5 Port)<br/>0x4001_6000 (8 KB)"]
-        WDT["Watchdog Safety Monitor<br/>0x4001_8000"]
     end
 
-    IFU_ADAPT --> S00
-    LSU_ADAPT --> S01
+    LSU_ADAPT --> S00
+    IFU_ADAPT --> S01
     DMA -->|Autonomous AXI Master| S03
 
+    XBAR -->|M00| UART
     XBAR -->|M01| IMEM
     XBAR -->|M02| DMEM
-    XBAR -->|M00| UART
-    XBAR -->|M03| TIMER
-    XBAR -->|M04| GPIO
+    XBAR -->|M06| TIMER
+    XBAR -->|M07| GPIO
     XBAR -->|M08| SPI
-    XBAR -->|M06| FIR
-    XBAR -->|M05| DMA
-    XBAR -->|M07| VGA
-    XBAR -->|M09| SBUF
-    XBAR -->|M10| WDT
+    XBAR -->|M09| WDT
+    XBAR -->|M10| DMA
+    XBAR -->|M11| FIR
+    XBAR -->|M12| VGA
+    XBAR -->|M13| SBUF
 ```
 
 ### 2.2 Dedicated Real-Time Streaming & Visualization Pipeline
@@ -124,9 +124,9 @@ flowchart LR
 | `clk` | Input | 1 | `clk_sys` (100 MHz) | Primary SoC system clock |
 | `rst_n` | Input | 1 | `clk_sys` | Active-low asynchronous reset (synchronously de-asserted) |
 | `clk_vga` | Input | 1 | `clk_vga` (25.175 MHz) | Pixel clock for 640x480 standard VGA timing |
-| `rst_vga_n` | Input | 1 | `clk_vga` | Active-low reset for VGA pixel clock domain |
 | `uart_rx` | Input | 1 | `clk_sys` | UART serial data receive pin |
 | `uart_tx` | Output | 1 | `clk_sys` | UART serial data transmit pin |
+| `uart_irq` | Output | 1 | `clk_sys` | UART interrupt request status observability pin |
 | `adc_spi_sck` | Output | 1 | `clk_sys` | SPI Serial Clock driven to external ADC |
 | `adc_spi_mosi` | Output | 1 | `clk_sys` | SPI Master Output Slave Input (commands/config) |
 | `adc_spi_miso` | Input | 1 | `clk_sys` | SPI Master Input Slave Output (serial sample data) |
@@ -140,6 +140,10 @@ flowchart LR
 | `vga_blue` | Output | 4 | `clk_vga` | VGA Blue color channel (4-bit DAC) |
 | `wdt_reset_out` | Output | 1 | `clk_sys` | Watchdog hard reset indicator pulse |
 | `ext_irq` | Input | 8 | `clk_sys` | General-purpose external interrupt inputs |
+| `timer_int` | Input | 1 | `clk_sys` | Auxiliary timer interrupt input |
+
+> [!NOTE]
+> `rst_vga_n` is an internal reset generated within `soc_top.sv` by passing `rst_n` through a dedicated 2-stage synchronizer (`rst_vga_n_meta`, `rst_vga_n`) clocked by `clk_vga`, preventing external pin proliferation and CDC metastability.
 
 ---
 
@@ -147,38 +151,42 @@ flowchart LR
 
 The AXI4 crossbar decodes addresses based on a 32-bit flat memory map:
 
-| Master Port | Slave Port | Peripheral / Memory Block | Base Address | Size | Description |
-|---|---|---|---|---|---|
-| M01 | S00, S01, S03 | **IMEM** (Instruction RAM) | `0x1000_0000` | 64 KB | Program storage (CPU instruction fetch) |
-| M02 | S01, S03 | **DMEM** (Data RAM) | `0x1002_0000` | 64 KB | Stack, variables, DMA scratchpad buffer |
-| M00 | S01, S03 | **AXI UART 16550** | `0x4000_6000` | 4 KB | 16550-compatible serial communications |
-| M03 | S01, S03 | **System Timer** | `0x4000_8000` | 4 KB | Periodic acquisition tick and prescaler |
-| M04 | S01, S03 | **GPIO Controller** | `0x4000_A000` | 4 KB | Buttons, switches, LED indicators |
-| M08 | S01, S03 | **SPI Master Controller** | `0x4000_C000` | 4 KB | Hardware ADC acquisition engine |
-| M06 | S01, S03 | **FIR Filter CSRs** | `0x4000_E000` | 4 KB | Filter tap coefficients and bypass control |
-| M05 | S01, S03 | **DMA Controller** | `0x4001_0000` | 4 KB | Autonomous AXI Master & streaming controls |
-| M07 | S01, S03 | **VGA Controller CSRs** | `0x4001_4000` | 4 KB | Display scales, trigger, grid, colors |
-| M09 | S01, S03 | **Sample Buffer (DP5)** | `0x4001_6000` | 8 KB | CPU direct access to ping-pong memory |
-| M10 | S01, S03 | **Watchdog Monitor** | `0x4001_8000` | 4 KB | Safety heartbeat and hardware reset |
-| — | — | **Reserved / I2C Stub** | `0x4000_0000` | 4 KB | Unmapped; returns AXI DECERR (Decode Error) |
+| Master Port | Accessible From | Peripheral / Memory Block | Base Address | Size | Protocol | Description |
+|---|---|---|---|---|---|---|
+| **M00** | S00, S01, S02, S03 | **AXI UART 16550** | `0x4000_6000` | 4 KB | AXI4-Lite | 16550-compatible serial communications |
+| **M01** | S00, S01, S02, S03 | **IMEM** (Instruction RAM) | `0x1000_0000` | 64 KB | AXI4 Full | Program storage (CPU instruction fetch) |
+| **M02** | S00, S01, S02, S03 | **DMEM** (Data RAM) | `0x1002_0000` | 64 KB | AXI4 Full | Stack, heap, variables, DMA scratchpad buffer |
+| **M03** | S00, S01, S02, S03 | **Reserved / I2C Stub** | `0x4000_0000` | 4 KB | DECERR | Tied off; returns AXI Decode Error (`2'b11`) |
+| **M04** | S00, S01, S02, S03 | **Reserved / PWM Stub** | `0x4000_2000` | 4 KB | DECERR | Tied off; returns AXI Decode Error (`2'b11`) |
+| **M05** | S00, S01, S02, S03 | **Reserved / SSD Stub** | `0x4000_4000` | 4 KB | DECERR | Tied off; returns AXI Decode Error (`2'b11`) |
+| **M06** | S00, S01, S02, S03 | **System Acquisition Timer** | `0x4000_8000` | 4 KB | AXI4-Lite | Periodic acquisition tick and prescaler |
+| **M07** | S00, S01, S02, S03 | **GPIO Controller** | `0x4000_A000` | 4 KB | AXI4-Lite | Push buttons, switches, LED indicators |
+| **M08** | S00, S01, S02, S03 | **SPI Master Controller** | `0x4000_C000` | 4 KB | AXI4-Lite | Hardware ADC acquisition engine |
+| **M09** | S00, S01, S02, S03 | **Watchdog Safety Monitor**| `0x4000_E000` | 4 KB | AXI4-Lite | Safety heartbeat, NMI pre-warn, hard reset |
+| **M10** | S00, S01, S02, S03 | **DMA Controller CSRs** | `0x4001_0000` | 4 KB | AXI4-Lite | Autonomous AXI Master & streaming controls |
+| **M11** | S00, S01, S02, S03 | **FIR Digital Filter** | `0x4001_2000` | 4 KB | AXI4-Lite | Filter tap coefficients and bypass control |
+| **M12** | S00, S01, S02, S03 | **VGA Controller CSRs** | `0x4001_4000` | 4 KB | AXI4-Lite | Display scales, trigger, grid, colors, cursors |
+| **M13** | S00, S01, S02, S03 | **Sample Buffer (DP5 Port)**| `0x4001_6000` | 8 KB | AXI4-Lite | Dual-port ping-pong memory + swap controls |
+| **M14..M19**| S00..S03 | **Unmapped Expansion** | `0x5000_0000+`| 4 KB ea. | DECERR | Unmapped space; returns AXI DECERR (`2'b11`) |
 
 ---
 
 ## 5. Core Interrupt Architecture & PIC Mapping
 
-The VeeR EL2 core includes an integrated Programmable Interrupt Controller (PIC). External interrupt lines from SoC peripherals are connected directly to the PIC external interrupt request vector (`core_extintsrc_req`):
+The VeeR EL2 core includes an integrated Programmable Interrupt Controller (PIC). External interrupt lines from SoC peripherals are connected directly to the PIC external interrupt request vector (`core_extintsrc_req`), while the Watchdog pre-warning connects directly to the core's Non-Maskable Interrupt (`nmi_int`):
 
 | PIC IRQ Index | Signal Name | Source Module | Trigger Condition |
 |---|---|---|---|
-| `[0]` | `irq_timer` | `timer` | Compare-match reached (`sample_tick` event) |
-| `[1]` | `irq_uart` | `axi_uart` | RX FIFO threshold reached or TX FIFO empty |
+| `[0]` | `uart_irq` | `axi_uart` | RX FIFO threshold reached or TX FIFO empty |
+| `[1]` | `irq_timer` | `timer` | Compare-match reached (`sample_tick` event) |
 | `[2]` | `irq_gpio` | `gpio` | Edge change detected on active input lines |
 | `[3]` | `irq_dma_done` | `dma_controller` | Block acquisition / AXI transfer completed |
 | `[4]` | `irq_dma_err` | `dma_controller` | DMA overflow, underrun, timeout, or bus error |
-| `[5]` | `irq_fir` | `fir_filter` | Coefficient update reload completed |
-| `[6]` | `irq_vga_frame` | `vga_controller` | Vertical blanking interval / new frame start |
+| `[5]` | `irq_fir` | `fir_filter` | Coefficient update reload completed or MAC overflow |
+| `[6]` | `irq_vga_frame` | `vga_controller` | Vertical blanking interval / trigger timeout |
 | `[7]` | `irq_spi` | `spi_controller` | SPI transfer completed / RX FIFO non-empty |
 | `[15:8]` | `ext_irq[7:0]` | External Pins | User / board external interrupt requests |
+| **Core NMI** | `wdt_nmi_prewarn` | `watchdog` | Watchdog counter reached 1 (1 tick prior to hard reset) |
 
 ---
 
@@ -195,8 +203,13 @@ The SPI Master IP communicates with the external ADC model (`adc_model.sv`). It 
   - `Bit 0`: `BUSY` — SPI serial transmission active.
   - `Bit 1`: `RX_READY` — Sample available in RX register / FIFO.
   - `Bit 2`: `RX_OVF` — RX FIFO overrun error (W1C).
+  - `Bit 3`: `FIFO_NON_EMPTY` — At least one sample resides in RX FIFO.
+  - `Bit 4`: `FIFO_FULL` — 32-entry RX FIFO is full.
 - `0x08`: `SPI_TXDATA` (WO) — Transmit command register.
 - `0x0C`: `SPI_RXDATA` (RO) — Received 16-bit ADC sample register (reading pops FIFO).
+- `0x10`: `SPI_CS` (RW) — Manual Chip-Select override (`Bit 0`: 0 = asserted, 1 = deasserted).
+- `0x14`: `SPI_FIFO_COUNT` (RO) — `Bits [5:0]`: Current number of samples in RX FIFO.
+- `0x18`: `SPI_FIFO_CTRL` (WO) — `Bit 0`: Write 1 to flush/clear the RX FIFO.
 
 ### 6.2 Autonomous DMA Controller IP (`0x4001_0000`)
 The DMA Controller operates as an autonomous bus-master entity with dedicated AXI4 master port S03 and hardware streaming pipelines.
@@ -222,17 +235,25 @@ The DMA Controller operates as an autonomous bus-master entity with dedicated AX
   - `Bit 5`: `ERR` — AXI bus slave error response received (W1C).
 - `0x18`: `DMA_SAMPLES_TRANSFERRED` (RO) — Current count of transferred words.
 
-### 6.3 FIR Filter Engine (`0x4000_E000`)
+### 6.3 FIR Filter Engine (`0x4001_2000`)
 - `0x00`: `FIR_CTRL` (RW) — `Bit 0`: `EN`, `Bit 1`: `BYPASS` (routes raw samples directly without delay).
 - `0x04`: `FIR_NTAPS` (RW) — Active tap count (1 to 16).
-- `0x08` to `0x44`: `FIR_COEF0` to `FIR_COEF15` (RW) — Signed 16-bit Q1.15 filter coefficients.
+- `0x08` to `0x44`: `FIR_COEF0` to `FIR_COEF15` (RW) — Signed 16-bit Q1.15 filter coefficients. Writing index `(NTAPS-1)` sets `COEF_LOAD_DONE`.
 - `0x48`: `FIR_STATUS` (RO / W1C) — `Bit 0`: `COEF_LOAD_DONE`, `Bit 1`: `PIPE_OVF`.
+- `0x50`: `FIR_DATA_IN` (RW) — Direct memory-mapped 16-bit sample injection port.
+- `0x54`: `FIR_DATA_OUT` (RO) — Direct memory-mapped 16-bit filtered sample readback.
+- `0x58`: `FIR_FIFO_STATUS` (RO) — Direct injection handshake status.
 
 ### 6.4 Dual-Port Ping-Pong Sample Buffer (`0x4001_6000`)
-- Organized as two 2048-sample ping-pong banks (total 4096 entries $\times$ 16 bits).
+- Organized as two 2048-sample ping-pong banks (total 4096 entries $\times$ 16 bits = 8 KB).
+  - Bank A (Buffer 0): Offset `0x0000`–`0x0FFF`.
+  - Bank B (Buffer 1): Offset `0x1000`–`0x1FFF`.
 - Write Port: System clock domain (`clk_sys`), written by DMA Controller.
 - Read Port 1: Pixel clock domain (`clk_vga`), continuously read by VGA Oscilloscope Controller.
 - Read Port 2: System clock domain (`clk_sys`), memory-mapped to CPU at `0x4001_6000` (DP5) for DSP measurement passes.
+- Control Registers:
+  - `0x2000`: `SBUF_CTRL` (RW) — `Bit 0`: `PING_PONG_EN`, `Bit 1`: `AUTO_SWAP`, `Bit 2`: `MANUAL_SWAP` (W1P), `Bit 3`: `HOLD`.
+  - `0x2004`: `SBUF_STATUS` (RO) — `Bit 0`: `CURR_WR_BUF`, `Bit 1`: `CURR_RD_BUF`, `Bits [15:2]`: `SWAP_COUNT`.
 
 ### 6.5 VGA Oscilloscope Controller (`0x4001_4000`)
 - `0x00`: `VGA_CTRL` (RW) — `Bit 0`: `EN`, `Bit 1`: `HOLD` (freeze trace), `Bit 2`: `GRID_EN`.
@@ -243,12 +264,19 @@ The DMA Controller operates as an autonomous bus-master entity with dedicated AX
 - `0x14`: `VGA_TRIG_EDGE` (RW) — `0`: Rising edge, `1`: Falling edge.
 - `0x18`: `VGA_TRIG_HOLDOFF` (RW) — Number of frames before entering auto-trigger free-run.
 - `0x1C`: `VGA_STATUS` (RO / W1C) — `Bit 0`: `FRAME_DONE`, `Bit 1`: `TRIGGERED`, `Bit 2`: `NOTRIG`.
-- `0x20`: `VGA_TRACE_COLOR` (RW) — 12-bit RGB color for waveform trace (e.g. `0x0F0` for green).
-- `0x24`: `VGA_GRID_COLOR` (RW) — 12-bit RGB color for division reticle.
-- `0x28`: `VGA_BG_COLOR` (RW) — 12-bit RGB background color.
-- `0x2C`: `VGA_CURSOR_A_Y` (RW) — Y-axis voltage cursor A position.
-- `0x30`: `VGA_CURSOR_B_Y` (RW) — Y-axis voltage cursor B position.
-- `0x34`: `VGA_CURSOR_X` (RW) — X-axis time cursor position.
+- `0x20`: `VGA_TRACE_COLOR` (RW) — 12-bit RGB color for waveform trace (e.g. `0xEF2` for yellow-green).
+- `0x24`: `VGA_GRID_COLOR` (RW) — 12-bit RGB color for division reticle (e.g. `0x145` for dim cyan).
+- `0x28`: `VGA_BG_COLOR` (RW) — 12-bit RGB background color (e.g. `0x001` for dark navy).
+- `0x2C`: `VGA_CURSOR_A_Y` (RW) — Y-axis voltage cursor A position (0..479).
+- `0x30`: `VGA_CURSOR_B_Y` (RW) — Y-axis voltage cursor B position (0..479).
+- `0x34`: `VGA_CURSOR_COLOR` (RW) — 12-bit RGB color for measurement cursors (default: `0xF0F` Magenta).
+- `0x38`: `VGA_UI_CTRL` (RW) — `Bit 0`: `CURSOR_A_EN`, `Bit 1`: `CURSOR_B_EN`, `Bit 2`: `TRACE_THICK` (0 = 1-pixel, 1 = 2-pixel bold).
+
+### 6.6 Watchdog Safety Monitor (`0x4000_E000`)
+- `0x00`: `WDT_CTRL` (RW) — `Bit 0`: `EN` — Arm watchdog countdown timer.
+- `0x04`: `WDT_RELOAD` (RW) — 32-bit countdown reload threshold.
+- `0x08`: `WDT_KICK` (WO) — Writing any value reloads the down-counter to `WDT_RELOAD`.
+- `0x0C`: `WDT_STATUS` (RO) — `Bit 0`: `PREWARN` (NMI active), `Bit 1`: `TRIPPED` (hard reset triggered).
 
 ---
 

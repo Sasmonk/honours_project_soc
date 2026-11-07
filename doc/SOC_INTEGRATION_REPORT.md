@@ -5,6 +5,9 @@
 **Status:** Integrated & 100% Verified in Synopsys VCS Simulation  
 **Target Simulator:** Synopsys VCS U-2023.03 / Synopsys Verdi U-2023.03-SP1  
 
+> [!NOTE]
+> **Milestone 1 Baseline Report:** This document captures the initial integration and verification of the VeeR EL2 core and AXI UART on an early 3-Master x 10-Slave interconnect prototype (Milestone 1). The complete production SoC architecture—featuring the full 5-Master x 20-Slave crossbar, 64 KB IMEM, 64 KB DMEM, and all 8 integrated streaming IPs—is specified in [ArchitectureDocument.md](file:///home/student/Documents/honours_project_soc/doc/ArchitectureDocument.md), [SOC_ARCHITECTURE_AND_TEST_PLAN.md](file:///home/student/Documents/honours_project_soc/doc/SOC_ARCHITECTURE_AND_TEST_PLAN.md), and the project [README.md](file:///home/student/Documents/honours_project_soc/README.md).
+
 ---
 
 ## 1. Executive Summary

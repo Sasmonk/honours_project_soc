@@ -25,7 +25,7 @@ This tracking document outlines the verification status, completed milestones, r
 
 1. **UVM VIP Infrastructure & Automation:**
    - Designed and built CSV signal specification workflow: `python uvm_testbench_generator.py <protocol> <signals.csv>`.
-   - Signal specifications generated for all peripherals: `axi_signals.csv`, `gpio_signals.csv`, `timer_signals.csv`, `watchdog_signals.csv`, `spi_signals.csv`, `fir_signals.csv`, `sample_buffer_signals.csv`, `vga_signals.csv`, `dma_signals.csv`.
+   - Signal specifications generated for all peripherals in [`csv_files/`](file:///home/student/Documents/honours_project_soc/csv_files/): `axi_signals.csv`, `gpio_signals.csv`, `timer_signals.csv`, `watchdog_signals.csv`, `spi_signals.csv`, `fir_signals.csv`, `sample_buffer_signals.csv`, `vga_signals.csv`, `dma_signals.csv`.
    - Built modular, reusable AXI-Lite VIP in [`axi_uvm_tb/`](file:///home/student/Documents/honours_project_soc/axi_uvm_tb/) supporting concurrent single-cycle address/data/response handshakes.
 
 2. **16550 UART VIP & RTL Bug Fix:**
