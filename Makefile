@@ -605,6 +605,8 @@ clean:
 	@echo "Cleaning UVM simulation build directories..."
 	rm -rf $(ROOT_DIR)/tb_uvm_*/simv $(ROOT_DIR)/tb_uvm_*/simv.daidir $(ROOT_DIR)/tb_uvm_*/csrc
 	rm -rf $(ROOT_DIR)/tb_uvm_*/*.log $(ROOT_DIR)/tb_uvm_*/*.fsdb $(ROOT_DIR)/tb_uvm_*/novas* $(ROOT_DIR)/tb_uvm_*/verdiLog $(ROOT_DIR)/tb_uvm_*/ucli.key $(ROOT_DIR)/tb_uvm_*/vc_hdrs.h $(ROOT_DIR)/tb_uvm_*/*.vcd $(ROOT_DIR)/tb_uvm_*/*.vdb
+	rm -rf $(ROOT_DIR)/axi_uvm_tb/simv $(ROOT_DIR)/axi_uvm_tb/simv.daidir $(ROOT_DIR)/axi_uvm_tb/csrc
+	rm -rf $(ROOT_DIR)/axi_uvm_tb/*.log $(ROOT_DIR)/axi_uvm_tb/*.fsdb $(ROOT_DIR)/axi_uvm_tb/novas* $(ROOT_DIR)/axi_uvm_tb/verdiLog $(ROOT_DIR)/axi_uvm_tb/ucli.key $(ROOT_DIR)/axi_uvm_tb/vc_hdrs.h
 	@echo "Clean completed."
 
 # ------------------------------------------------------------------------------

@@ -666,6 +666,16 @@ honours_project_soc-main/
 │       └── rtl/verilog/           # Synthesizable AES cipher and AXI slave RTL
 ├── scripts/                       # Generation and utility scripts
 │   └── axi_interconnect_wrap.py   # Parameterized AXI interconnect generator
+├── axi_uvm_tb/                    # Universal AXI4-Lite UVM Verification IP (VIP)
+├── tb_uvm_uart/                   # 16550 UART UVM VIP Testbench (TC_COM_01..03)
+├── tb_uvm_gpio/                   # GPIO Controller UVM VIP Testbench (TC_COM_03..04)
+├── tb_uvm_timer/                  # Acquisition Timer UVM VIP Testbench (TC_ACQ_01)
+├── tb_uvm_watchdog/               # Watchdog Safety Monitor UVM VIP Testbench (TC_WDT_01)
+├── tb_uvm_spi/                    # SPI Master Controller UVM VIP Testbench (TC_ACQ_02..06)
+├── tb_uvm_fir/                    # 16-Tap FIR Digital Filter UVM VIP Testbench (TC_FIR_01..06)
+├── tb_uvm_sample_buffer/          # Dual-Port Sample Buffer & CDC UVM VIP Testbench (TC_BUF_01..05)
+├── tb_uvm_vga/                    # VGA Oscilloscope Controller UVM VIP Testbench (TC_VGA_01..06)
+├── tb_uvm_dma/                    # Autonomous DMA Controller UVM VIP Testbench (TC_DMA_01..07)
 ├── tb/                            # Verification testbenches and stimulus
 │   ├── adc_model.sv               # Behavioral SPI ADC stimulus model (sine/square/tri/DC)
 │   ├── tb_soc_pipeline.sv         # Full acquire-filter-display end-to-end testbench
