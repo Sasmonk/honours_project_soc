@@ -130,7 +130,8 @@ VERDI_BIN ?= $(VERDI_HOME)/bin/verdi
         uart interconnect timer gpio fir sample_buffer dma vga vga-live vga-live-gui vga-live-verdi watchdog pipeline test-all \
         soc soc-compile soc-sim soc-verdi hello hello-verdi \
         uart-verdi interconnect-verdi timer-verdi gpio-verdi fir-verdi \
-        sample_buffer-verdi dma-verdi vga-verdi watchdog-verdi pipeline-verdi
+        sample_buffer-verdi dma-verdi vga-verdi watchdog-verdi pipeline-verdi \
+        uvm-soc uvm-soc-hello uvm-soc-ui uvm-soc-verdi
 
 # Default target: display help menu
 all: help
@@ -594,6 +595,30 @@ uvm-dma-verdi:
 	cd $(ROOT_DIR)/tb_uvm_dma && $(MAKE) verdi
 
 # ------------------------------------------------------------------------------
+# Top-Level SoC UVM Verification Targets (tb_uvm_soc)
+# ------------------------------------------------------------------------------
+uvm-soc:
+	@echo "=========================================================="
+	@echo " Running Top-Level SoC UVM All Features Test Suite        "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_soc && $(MAKE) run
+
+uvm-soc-hello:
+	@echo "=========================================================="
+	@echo " Running Top-Level SoC UVM Firmware Hello Boot Test       "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_soc && $(MAKE) hello
+
+uvm-soc-ui:
+	@echo "=========================================================="
+	@echo " Running Top-Level SoC UVM Interactive UI Test            "
+	@echo "=========================================================="
+	cd $(ROOT_DIR)/tb_uvm_soc && $(MAKE) ui
+
+uvm-soc-verdi:
+	cd $(ROOT_DIR)/tb_uvm_soc && $(MAKE) verdi
+
+# ------------------------------------------------------------------------------
 # Cleanup
 # ------------------------------------------------------------------------------
 clean:
@@ -635,6 +660,9 @@ help:
 	@echo "   make soc           - Compile & Run Complete Top-Level SoC test"
 	@echo "   make hello         - Compile C firmware & Run UART Hello World test"
 	@echo "   make test-all      - Run all testbenches sequentially"
+	@echo "   make uvm-soc       - Compile & Run Top-Level SoC UVM Verification (All Features)"
+	@echo "   make uvm-soc-hello - Compile & Run Top-Level SoC UVM Firmware Hello Boot Test"
+	@echo "   make uvm-soc-ui    - Compile & Run Top-Level SoC UVM Interactive UI Test"
 	@echo ""
 	@echo " Verdi Waveform Viewing:"
 	@echo "   make verdi         - Open Verdi GUI for current TEST (default: soc)"
